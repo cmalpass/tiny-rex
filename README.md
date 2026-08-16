@@ -9,6 +9,10 @@ Canvas 2D drawing and the Web Audio API. There are **no external assets or runti
 libraries**; the only tooling is Vite + TypeScript for the dev server, typecheck,
 tests, and a single-file production build.
 
+![Main menu](docs/evidence/01-menu.png)
+
+*Main menu — title lockup, controls and quest panels, and your best records.*
+
 ## How to run
 
 **Dev server:**
