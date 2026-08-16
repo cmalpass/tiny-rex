@@ -699,6 +699,42 @@ export class Game implements GameCtx {
     return { px, py, pw, ph };
   }
 
+  /** Centered text with manual letter tracking (portable across browsers). */
+  drawTracked(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, spacing: number, stroke: boolean): void {
+    const chars = [...text];
+    const widths = chars.map((c) => ctx.measureText(c).width);
+    let x = cx - (widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1)) / 2;
+    const prevAlign = ctx.textAlign;
+    ctx.textAlign = 'left';
+    for (let i = 0; i < chars.length; i++) {
+      if (stroke) ctx.strokeText(chars[i], x, y);
+      ctx.fillText(chars[i], x, y);
+      x += widths[i] + spacing;
+    }
+    ctx.textAlign = prevAlign;
+  }
+
+  /** Rounded, semi-transparent info panel with an uppercase heading and divider. */
+  drawInfoPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, heading: string): void {
+    ctx.fillStyle = 'rgba(16,26,40,0.62)';
+    this.roundRect(ctx, x, y, w, h, 14);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1;
+    this.roundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 14);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 13px ' + FONT_STACK;
+    ctx.textAlign = 'left';
+    ctx.fillText(heading, x + 20, y + 30);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 20, y + 42);
+    ctx.lineTo(x + w - 20, y + 42);
+    ctx.stroke();
+  }
+
   drawUIButton(ctx: CanvasRenderingContext2D, b: UIButton): void {
     const hover = this.uiHover === b;
     ctx.fillStyle = b.color || '#ffd257';
@@ -828,80 +864,82 @@ export class Game implements GameCtx {
       rot: 0,
     };
     Sprite.drawRex(ctx, fakeP, this.time);
-    // Title with bounce
+    // Title block (gently floating)
     ctx.textAlign = 'center';
     const bounce = Math.sin(this.time * 2) * 4;
     ctx.font = '800 64px ' + FONT_STACK;
-    ctx.lineWidth = 8;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 6;
     ctx.strokeStyle = 'rgba(30,50,30,0.85)';
-    ctx.strokeText('TINY REX', VW / 2, 150 + bounce);
-    const tg = ctx.createLinearGradient(0, 90, 0, 160);
+    ctx.strokeText('TINY REX', VW / 2, 118 + bounce);
+    const tg = ctx.createLinearGradient(0, 56, 0, 124);
     tg.addColorStop(0, '#c8f0a0');
     tg.addColorStop(1, '#5da854');
     ctx.fillStyle = tg;
-    ctx.fillText('TINY REX', VW / 2, 150 + bounce);
-    ctx.font = '800 30px ' + FONT_STACK;
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = 'rgba(60,40,20,0.8)';
-    ctx.strokeText('Crystal Valley', VW / 2, 192 + bounce * 0.5);
+    ctx.fillText('TINY REX', VW / 2, 118 + bounce);
+    // Subtitle: tracked uppercase for a cleaner lockup
+    ctx.font = '800 22px ' + FONT_STACK;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(60,40,20,0.6)';
+    this.drawTracked(ctx, 'CRYSTAL VALLEY', VW / 2, 156 + bounce * 0.4, 7, true);
     ctx.fillStyle = '#ffe28a';
-    ctx.fillText('Crystal Valley', VW / 2, 192 + bounce * 0.5);
-    // Start prompt
-    const pulse = 0.6 + 0.4 * Math.sin(this.time * 3.4);
-    ctx.globalAlpha = pulse;
-    ctx.font = '800 24px ' + FONT_STACK;
-    ctx.fillStyle = '#fff';
-    ctx.fillText('Press SPACE or Tap to Start', VW / 2, 512);
-    ctx.globalAlpha = 1;
+    this.drawTracked(ctx, 'CRYSTAL VALLEY', VW / 2, 156 + bounce * 0.4, 7, false);
     // Best records
-    ctx.font = '700 15px ' + FONT_STACK;
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = '600 13px ' + FONT_STACK;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillText(
-      'Best Score ' + (this.best.score || '—') + '      Best Time ' + (this.best.time === null ? '—' : fmtTime(this.best.time)),
+      'Best Score  ' + (this.best.score || '—') + '   ·   Best Time  ' + (this.best.time === null ? '—' : fmtTime(this.best.time)),
       VW / 2,
-      534,
+      182,
     );
-    // Controls
-    ctx.fillStyle = 'rgba(20,30,45,0.6)';
-    this.roundRect(ctx, 34, 236, 260, 160, 12);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'left';
-    ctx.font = '800 16px ' + FONT_STACK;
-    ctx.fillText('Controls', 54, 262);
-    ctx.font = '600 13.5px ' + FONT_STACK;
-    ctx.fillStyle = '#dce8f5';
-    const rows = [
-      'Move — A / D or ← / →',
-      'Jump — W / ↑ / Space',
-      'Pause — P or Esc',
-      'Restart — R',
-      'Mute — M      Reduced motion — V',
-      'Debug overlay — F2',
+    // Controls panel (left)
+    const cpx = 34, cpy = 232, cpw = 250, cph = 196;
+    this.drawInfoPanel(ctx, cpx, cpy, cpw, cph, 'CONTROLS');
+    const rows: Array<[string, string]> = [
+      ['Move', 'A / D · ← / →'],
+      ['Jump', 'W / ↑ / Space'],
+      ['Pause', 'P / Esc'],
+      ['Restart', 'R'],
+      ['Mute', 'M'],
+      ['Calm', 'V'],
+      ['Debug', 'F2'],
     ];
-    rows.forEach((r, i) => ctx.fillText(r, 54, 286 + i * 22));
-    // Right side info panel
-    ctx.fillStyle = 'rgba(20,30,45,0.6)';
-    this.roundRect(ctx, VW - 300, 236, 260, 160, 12);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = '800 16px ' + FONT_STACK;
-    ctx.fillText('Your Quest', VW - 280, 262);
-    ctx.font = '600 13.5px ' + FONT_STACK;
-    ctx.fillStyle = '#dce8f5';
+    ctx.font = '600 13px ' + FONT_STACK;
+    rows.forEach(([label, keys], i) => {
+      const y = cpy + 66 + i * 20;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#cfe0f2';
+      ctx.fillText(label, cpx + 20, y);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#9fd8ff';
+      ctx.fillText(keys, cpx + cpw - 20, y);
+    });
+    // Quest panel (right), rows vertically centred against the controls list
+    const qx = VW - 284, qy = 232, qw = 250, qh = 196;
+    this.drawInfoPanel(ctx, qx, qy, qw, qh, 'YOUR QUEST');
     const quest = [
-      '• Reach the glowing nest',
-      '• Collect amber crystals',
-      '• Stomp beetles, trikes & pteros',
-      '• Watch for lava, spikes & rocks',
-      '• Touch flags to save progress',
+      'Reach the glowing nest',
+      'Collect amber crystals',
+      'Stomp beetles, trikes & pteros',
+      'Watch for lava, spikes & rocks',
+      'Touch flags to save progress',
     ];
-    quest.forEach((r, i) => ctx.fillText(r, VW - 280, 286 + i * 22));
-    // Mute / reduced-motion toggles (drawn as buttons)
+    ctx.font = '600 13px ' + FONT_STACK;
+    quest.forEach((r, i) => {
+      const y = qy + 86 + i * 20;
+      ctx.fillStyle = '#ffd257';
+      ctx.beginPath();
+      ctx.arc(qx + 26, y - 4.5, 2.5, 0, TAU);
+      ctx.fill();
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#cfe0f2';
+      ctx.fillText(r, qx + 38, y);
+    });
+    // Start button + toggles (sitting on the ground strip for contrast)
     this.uiButtons = [
-      { x: VW / 2 - 100, y: 440, w: 200, h: 50, label: 'Start Game', action: () => this.startGame() },
+      { x: VW / 2 - 100, y: 470, w: 200, h: 48, label: 'Start Game', action: () => this.startGame() },
       {
-        x: 640, y: 452, w: 128, h: 40, label: (this.audio.muted ? 'Sound: Off' : 'Sound: On') + '  [M]',
+        x: 648, y: 474, w: 132, h: 40, label: (this.audio.muted ? 'Sound: Off' : 'Sound: On') + ' · M',
         color: '#8fa8ba',
         action: () => {
           this.audio.setMuted(!this.audio.muted);
@@ -910,7 +948,7 @@ export class Game implements GameCtx {
         },
       },
       {
-        x: 778, y: 452, w: 150, h: 40, label: (this.reducedMotion ? 'Calm: On' : 'Calm: Off') + '  [V]',
+        x: 792, y: 474, w: 130, h: 40, label: (this.reducedMotion ? 'Calm: On' : 'Calm: Off') + ' · V',
         color: '#8fa8ba',
         action: () => {
           this.reducedMotion = !this.reducedMotion;
@@ -920,6 +958,13 @@ export class Game implements GameCtx {
       },
     ];
     for (const b of this.uiButtons) this.drawUIButton(ctx, b);
+    // Start hint under the button
+    const pulse = 0.55 + 0.35 * Math.sin(this.time * 3.4);
+    ctx.globalAlpha = pulse;
+    ctx.font = '700 12px ' + FONT_STACK;
+    ctx.fillStyle = '#fff';
+    this.drawTracked(ctx, 'ENTER · SPACE · TAP', VW / 2, 534, 2, false);
+    ctx.globalAlpha = 1;
   }
 
   drawDebug(ctx: CanvasRenderingContext2D): void {

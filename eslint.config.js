@@ -22,4 +22,11 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    // Node harness scripts whose page.evaluate callbacks also run in the browser.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
 );
