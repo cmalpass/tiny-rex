@@ -30,6 +30,21 @@ npm run build
 Useful scripts: `npm test` (Vitest), `npm run typecheck`, `npm run lint`,
 `npm run preview` (serve the production build locally).
 
+## Playability evidence
+
+The full state machine was verified in a real (headless) browser: screenshots
+of every key screen (menu, running, dying, game over, checkpoint respawn,
+pause, victory) plus a recorded playthrough video live in
+[`docs/evidence/`](docs/evidence/), with per-frame state logs and
+reproduction steps in [`docs/PLAYABILITY.md`](docs/PLAYABILITY.md).
+
+Re-capture with:
+
+```sh
+npm run dev &                        # or any server URL as the second arg
+node scripts/capture-evidence.mjs
+```
+
 ## Controls
 
 | Action            | Keyboard                          | Touch          |
