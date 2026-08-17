@@ -21,15 +21,18 @@ export class Level {
   start: { x: number; y: number };
   startGroundY: number;
   totalCrystals: number;
+  /** Enemy speed multiplier (difficulty). */
+  readonly enemySpeed: number;
 
-  constructor(d: LevelDef, game: GameCtx) {
+  constructor(d: LevelDef, game: GameCtx, enemySpeed = 1) {
     this.width = d.width;
+    this.enemySpeed = enemySpeed;
     this.platforms = d.platforms.map((p) => new Platform(p));
     this.crystals = d.crystals.map((c) => new Crystal(c.x, c.y, c.bonus ?? false));
     this.hazards = d.hazards.map((h) => new Hazard(h, this, game));
     this.checkpoints = d.checkpoints.map((c) => new Checkpoint(c.x, c.y, game));
     this.enemies = d.enemies.map((e) => {
-      const en = new Enemy(e, this);
+      const en = new Enemy(e, this, enemySpeed);
       if (en.type === 'ptero') {
         en.phase0 = Math.random() * TAU;
         en.x = en.ax;

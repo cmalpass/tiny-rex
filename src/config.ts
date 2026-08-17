@@ -42,3 +42,18 @@ export const VW = CFG.view.w;
 export const VH = CFG.view.h;
 export const TAU = Math.PI * 2;
 export const FONT_STACK = '"Trebuchet MS", "Segoe UI", Verdana, sans-serif';
+
+/* Difficulty presets: hearts on the player, and how fast enemies move. */
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export const DIFFICULTIES: Record<Difficulty, { hearts: number; enemySpeed: number }> = {
+  easy: { hearts: 5, enemySpeed: 0.8 },
+  normal: { hearts: 3, enemySpeed: 1.0 },
+  hard: { hearts: 2, enemySpeed: 1.25 },
+};
+
+/** End-of-run star rating: finish = 1★, +1 for ≥2 hearts left, +1 for ≥80% crystals. */
+export const STARS = {
+  heartThreshold: 2,
+  crystalPct: 0.8,
+};

@@ -26,6 +26,25 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   value: (_type: string): CanvasRenderingContext2D => sharedCtx,
 });
 
+// Vitest's jsdom env exposes no localStorage unless --localstorage-file is
+// provided; provide a simple in-memory stand-in so Store persistence is
+// exercised in tests.
+if (typeof (globalThis as Record<string, unknown>).localStorage === 'undefined') {
+  const data = new Map<string, string>();
+  const storage = {
+    getItem: (k: string) => (data.has(k) ? data.get(k)! : null),
+    setItem: (k: string, v: string) => void data.set(k, String(v)),
+    removeItem: (k: string) => void data.delete(k),
+    clear: () => data.clear(),
+    key: (i: number) => [...data.keys()][i] ?? null,
+    get length() {
+      return data.size;
+    },
+  };
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  Object.defineProperty(window, 'localStorage', { value: storage, configurable: true });
+}
+
 // jsdom lacks matchMedia; touch binding guards for it, but provide a stub
 // for code paths that probe it.
 if (typeof window.matchMedia !== 'function') {

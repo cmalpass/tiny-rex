@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Game } from '../src/game';
 import { LEVEL_DATA } from '../src/level-data';
+import { Store, type GameStats } from '../src/store';
 
 function makeGame(): Game {
   const canvas = document.createElement('canvas');
@@ -117,5 +118,122 @@ describe('Game state machine', () => {
     expect(game.input.jumpHeld).toBe(true);
     game.input.touchBtn('jump', false);
     expect(game.input.jumpHeld).toBe(false);
+  });
+});
+
+describe('Menu: level & difficulty selection', () => {
+  let game: Game;
+
+  beforeEach(() => {
+    localStorage.clear();
+    game = makeGame();
+  });
+
+  it('boots on level 1 with the meadow theme', () => {
+    expect(game.levelIdx).toBe(0);
+    expect(game.bg.theme).toBe('meadow');
+  });
+
+  it('cycles levels with the arrow keys and re-themes the backdrop', () => {
+    game.handleKey('right');
+    expect(game.levelIdx).toBe(1);
+    expect(game.bg.theme).toBe('volcanic');
+    game.handleKey('left');
+    expect(game.levelIdx).toBe(0);
+    expect(game.bg.theme).toBe('meadow');
+  });
+
+  it('persists the selected level for the next boot', () => {
+    game.handleKey('right');
+    expect(Store.get('tinyrex_level', -1)).toBe(1);
+    const next = new Game(document.createElement('canvas'));
+    expect(next.levelIdx).toBe(1);
+    expect(next.bg.theme).toBe('volcanic');
+  });
+
+  it('cycles difficulty and persists the choice', () => {
+    game.selectDifficulty('normal');
+    game.handleKey('down');
+    expect(game.difficulty).toBe('hard');
+    game.handleKey('down');
+    expect(game.difficulty).toBe('easy');
+    expect(Store.get('tinyrex_difficulty', 'none')).toBe('easy');
+  });
+
+  it('selects a difficulty directly from the pill', () => {
+    game.selectDifficulty('hard');
+    expect(game.maxHearts).toBe(2);
+    expect(Store.get('tinyrex_difficulty', 'none')).toBe('hard');
+  });
+
+  it('starts easy runs with five hearts and hard runs with two', () => {
+    game.selectDifficulty('easy');
+    game.handleKey('primary');
+    expect(game.player!.maxHearts).toBe(5);
+    expect(game.player!.hearts).toBe(5);
+    game.toMenu();
+    game.selectDifficulty('hard');
+    game.handleKey('primary');
+    expect(game.player!.maxHearts).toBe(2);
+    expect(game.player!.hearts).toBe(2);
+  });
+});
+
+describe('Run end: stars & per-level records', () => {
+  let game: Game;
+
+  beforeEach(() => {
+    localStorage.clear();
+    game = makeGame();
+  });
+
+  it('awards three stars for a clean finish and stores the best', () => {
+    game.handleKey('primary');
+    const total = game.level!.totalCrystals;
+    game.crystalsGot = total;
+    game.player!.hearts = game.player!.maxHearts; // ≥2 hearts → heart star
+    game.elapsed = 100;
+    game.onPlayerVictory();
+    expect(game.state).toBe('victory');
+    expect(game.results!.stars).toBe(3);
+    expect(game.results!.isBestStars).toBe(true);
+    expect(game.bestStars).toBe(3);
+    // Per-level record persisted
+    const best = Store.get<{ score: number; time: number | null } | null>('tinyrex_best_0', null);
+    expect(best!.score).toBe(game.score);
+    expect(best!.time).toBe(100);
+    // Lifetime stats updated
+    expect(game.stats.victories).toBe(1);
+    expect(game.stats.crystals).toBe(total);
+  });
+
+  it('awards a single star for a bare finish', () => {
+    game.handleKey('primary');
+    game.crystalsGot = 0;
+    game.player!.hearts = 1; // no heart star, no crystal star
+    game.onPlayerVictory();
+    expect(game.results!.stars).toBe(1);
+    expect(game.results!.isBestStars).toBe(true); // 1 > 0
+  });
+
+  it('does not re-flag best stars on a repeat finish', () => {
+    game.handleKey('primary');
+    game.player!.hearts = 1;
+    game.onPlayerVictory();
+    expect(game.results!.stars).toBe(1);
+    // Repeat the same finish → no new best
+    game.victoryT = 2;
+    game.handleKey('primary');
+    game.player!.hearts = 1;
+    game.onPlayerVictory();
+    expect(game.results!.stars).toBe(1);
+    expect(game.results!.isBestStars).toBe(false);
+  });
+
+  it('tracks deaths in the lifetime stats', () => {
+    game.handleKey('primary');
+    game.onPlayerDeath();
+    expect(game.stats.deaths).toBe(1);
+    expect(Store.get<GameStats | null>('tinyrex_stats', null)!.deaths).toBe(1);
   });
 });

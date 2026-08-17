@@ -68,9 +68,20 @@ export interface LevelDef {
   decor: DecorDef[];
 }
 
+export type LevelTheme = 'meadow' | 'volcanic';
+
+export interface LevelInfo {
+  id: number;
+  name: string;
+  /** Tracked-uppercase menu subtitle. */
+  subtitle: string;
+  theme: LevelTheme;
+  def: LevelDef;
+}
+
 // Layout notes: ground tops at y=460; pits are gaps between ground
 // segments; lava sits in pits at y=520. ~7550px wide, 3–6 min run.
-export const LEVEL_DATA: LevelDef = {
+const LEVEL_1: LevelDef = {
   width: 7550,
   startX: 120,
   startY: 414, // 460 - player.h
@@ -200,3 +211,119 @@ export const LEVEL_DATA: LevelDef = {
     { type: 'tuft', x: 6200 }, { type: 'tuft', x: 6600 },
   ],
 };
+
+// Level 2 — "Volcanic Depths": a night-time lava field. Same ground line
+// (y=460) and pacing as the valley, but harder: a long lava moat, a twin
+// falling-rock gauntlet, and denser ptero traffic.
+const LEVEL_2: LevelDef = {
+  width: 7550,
+  startX: 120,
+  startY: 414, // 460 - player.h
+  startGroundY: 460,
+  platforms: [
+    // ---- Section A: night opening (teach the mood, first crystal arc) ----
+    { x: 0, y: 460, w: 1100, h: 120, type: 'ground' },
+    { x: 400, y: 372, w: 120, h: 24, type: 'stone' },
+    { x: 620, y: 300, w: 120, h: 24, type: 'stone' },
+    { x: 840, y: 372, w: 120, h: 24, type: 'stone' },
+    // ---- Section B: first enemies over the basalt shelf ----
+    { x: 1250, y: 460, w: 420, h: 120, type: 'ground' },
+    { x: 1820, y: 460, w: 560, h: 120, type: 'ground' },
+    { x: 1950, y: 360, w: 130, h: 24, type: 'stone' },
+    { x: 2200, y: 300, w: 130, h: 24, type: 'stone' },
+    { x: 2450, y: 360, w: 130, h: 24, type: 'stone' },
+    // ---- Section C: the lava moat (stepping stones → mover → stone → y-mover) ----
+    { x: 2560, y: 430, w: 100, h: 24, type: 'stone' },
+    { x: 2780, y: 430, w: 100, h: 24, type: 'stone' },
+    { x: 3000, y: 460, w: 300, h: 120, type: 'ground' },
+    { x: 3380, y: 420, w: 100, h: 24, type: 'mover', axis: 'x', amp: 90, speed: 1.1 },
+    { x: 3700, y: 390, w: 100, h: 24, type: 'stone' },
+    { x: 3880, y: 430, w: 110, h: 24, type: 'mover', axis: 'y', amp: 80, speed: 1.3 },
+    { x: 4100, y: 460, w: 320, h: 120, type: 'ground' },
+    // ---- Section D: spike ledges between the shelf and the rockfall ----
+    { x: 4560, y: 460, w: 380, h: 120, type: 'ground' },
+    { x: 4660, y: 360, w: 120, h: 24, type: 'stone' },
+    { x: 5000, y: 460, w: 420, h: 120, type: 'ground' },
+    // ---- Section E: twin falling-rock gauntlet ----
+    { x: 5560, y: 460, w: 360, h: 120, type: 'ground' },
+    { x: 5660, y: 350, w: 110, h: 24, type: 'stone' },
+    { x: 6060, y: 460, w: 400, h: 120, type: 'ground' },
+    { x: 6240, y: 360, w: 120, h: 24, type: 'stone' },
+    // ---- Section F: home stretch to the ember nest ----
+    { x: 6600, y: 460, w: 950, h: 120, type: 'ground' },
+    { x: 6760, y: 372, w: 130, h: 24, type: 'stone' },
+    { x: 6980, y: 312, w: 130, h: 24, type: 'stone' },
+  ],
+  crystals: [
+    // Section A
+    { x: 190, y: 425 }, { x: 260, y: 425 },
+    { x: 460, y: 335 }, { x: 680, y: 263 }, { x: 900, y: 335 },
+    // Section B
+    { x: 1350, y: 425 }, { x: 1620, y: 425 },
+    { x: 2015, y: 323 }, { x: 2265, y: 263 }, { x: 2515, y: 323 },
+    // Moat
+    { x: 3150, y: 425 }, { x: 3430, y: 383 }, { x: 3750, y: 353 }, { x: 3935, y: 293 },
+    // Section C/D
+    { x: 4180, y: 425 }, { x: 4330, y: 425 }, { x: 4720, y: 425 }, { x: 4720, y: 323 },
+    // Section D
+    { x: 5090, y: 425 }, { x: 5300, y: 425 },
+    // Section E
+    { x: 5610, y: 425 }, { x: 5715, y: 313 }, { x: 5880, y: 425 },
+    { x: 6130, y: 425 }, { x: 6300, y: 323 },
+    // Section F
+    { x: 6700, y: 425 }, { x: 6825, y: 335 }, { x: 7045, y: 275, bonus: true },
+    { x: 7170, y: 425 }, { x: 7320, y: 425 },
+  ],
+  enemies: [
+    { type: 'beetle', x: 950, y: 432, minX: 850, maxX: 1100 },
+    { type: 'beetle', x: 1500, y: 432, minX: 1290, maxX: 1650 },
+    { type: 'trike', x: 2000, y: 424, minX: 1860, maxX: 2360 },
+    { type: 'trike', x: 3080, y: 424, minX: 3020, maxX: 3290 },
+    { type: 'ptero', x: 3500, y: 320, range: 90 },
+    { type: 'ptero', x: 3950, y: 280, range: 120 },
+    { type: 'beetle', x: 4700, y: 432, minX: 4600, maxX: 4930 },
+    { type: 'ptero', x: 4750, y: 250, range: 110 },
+    { type: 'trike', x: 5200, y: 424, minX: 5040, maxX: 5400 },
+    { type: 'ptero', x: 5700, y: 260, range: 100 },
+    { type: 'beetle', x: 5800, y: 432, minX: 5580, maxX: 5910 },
+    { type: 'ptero', x: 6150, y: 250, range: 130 },
+    { type: 'trike', x: 6300, y: 424, minX: 6090, maxX: 6440 },
+    { type: 'beetle', x: 6800, y: 432, minX: 6650, maxX: 7100 },
+    { type: 'ptero', x: 7050, y: 240, range: 120 },
+  ],
+  hazards: [
+    { type: 'spikes', x: 4330, y: 460, w: 70 },
+    { type: 'spikes', x: 5100, y: 460, w: 80 },
+    { type: 'lava', x: 2420, y: 520, w: 560 },
+    { type: 'lava', x: 5430, y: 520, w: 130 },
+    { type: 'lava', x: 6470, y: 520, w: 130 },
+    { type: 'rocks', x: 5600, y: 460, w: 240, interval: 2.2 },
+    { type: 'rocks', x: 6100, y: 460, w: 220, interval: 2.6 },
+  ],
+  checkpoints: [
+    { x: 2340, y: 460 },
+    { x: 4380, y: 460 },
+    { x: 6420, y: 460 },
+  ],
+  goal: { x: 7350, y: 460 },
+  decor: [
+    { type: 'sign', x: 120 },
+    { type: 'crystalrock', x: 260, s: 1.0 }, { type: 'flower', x: 700, color: '#c9a0ff' },
+    { type: 'tuft', x: 400 }, { type: 'rock', x: 950 }, { type: 'bush', x: 1550 },
+    { type: 'crystalrock', x: 1700, s: 1.1 }, { type: 'tuft', x: 1400 }, { type: 'tuft', x: 2500 },
+    { type: 'rock', x: 2950 }, { type: 'tuft', x: 3200 },
+    { type: 'crystalrock', x: 4050, s: 0.9 }, { type: 'rock', x: 4950 }, { type: 'bush', x: 4600 },
+    { type: 'tuft', x: 4200 }, { type: 'crystalrock', x: 5500, s: 1.2 },
+    { type: 'flower', x: 5200, color: '#ff8fa3' }, { type: 'tuft', x: 5300 },
+    { type: 'tuft', x: 6100 }, { type: 'rock', x: 6550 },
+    { type: 'crystalrock', x: 7450, s: 1.0 }, { type: 'tuft', x: 6800 },
+  ],
+};
+
+export const LEVELS: LevelInfo[] = [
+  { id: 0, name: 'Crystal Valley', subtitle: 'CRYSTAL VALLEY', theme: 'meadow', def: LEVEL_1 },
+  { id: 1, name: 'Volcanic Depths', subtitle: 'VOLCANIC DEPTHS', theme: 'volcanic', def: LEVEL_2 },
+];
+
+/** Backward-compatible handle for the original level (Crystal Valley). */
+export const LEVEL_DATA: LevelDef = LEVEL_1;

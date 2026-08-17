@@ -1,4 +1,5 @@
 import { Store } from './store';
+import type { LevelTheme } from './level-data';
 
 interface ToneOpts {
   freq?: number;
@@ -29,8 +30,67 @@ export class AudioManager {
   ambientNodes: { src: AudioBufferSourceNode; lfo: OscillatorNode; gain: GainNode } | null = null;
   chirpTimer = 0;
 
+  /* --- Procedural chiptune music --- */
+  private musicTheme: LevelTheme | null = null;
+  private musicTimer: ReturnType<typeof setInterval> | null = null;
+  private musicNextT = 0; // AudioContext time of the next step (0 = unscheduled)
+  private musicStep = 0;
+
   constructor() {
     this.muted = Store.get('tinyrex_muted', false);
+  }
+
+  /** Start the looping theme. Safe to call when the ctx isn't up yet. */
+  startMusic(theme: LevelTheme): void {
+    this.musicTheme = theme;
+    if (this.musicTimer !== null) return; // already scheduling
+    this.musicStep = 0;
+    this.musicNextT = 0;
+    this.musicTimer = setInterval(() => this.scheduleMusic(), 60);
+  }
+
+  stopMusic(): void {
+    this.musicTheme = null;
+    this.musicNextT = 0;
+    this.musicStep = 0;
+    if (this.musicTimer !== null) {
+      clearInterval(this.musicTimer);
+      this.musicTimer = null;
+    }
+  }
+
+  private scheduleMusic(): void {
+    if (!this.ctx || !this.master || !this.musicTheme) return;
+    const theme = this.musicTheme;
+    const spb = 60 / MUSIC[theme].bpm;
+    const step = spb / 2; // 8th notes
+    if (this.musicNextT === 0) this.musicNextT = this.ctx.currentTime + 0.12;
+    const lead = MUSIC[theme].lead;
+    const bass = MUSIC[theme].bass;
+    while (this.musicNextT < this.ctx.currentTime + 0.15) {
+      if (!this.muted) {
+        const idx = this.musicStep % lead.length;
+        const ln = lead[idx];
+        if (ln > 0) this.musicNote(midiToFreq(ln), this.musicNextT, step * 0.9, 'square', 0.045);
+        const bn = bass[idx % bass.length];
+        if (bn > 0) this.musicNote(midiToFreq(bn), this.musicNextT, step * 0.9, 'triangle', 0.06);
+      }
+      this.musicStep++;
+      this.musicNextT += step;
+    }
+  }
+
+  private musicNote(freq: number, t0: number, dur: number, type: OscillatorType, vol: number): void {
+    const osc = this.ctx!.createOscillator();
+    const g = this.ctx!.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(g);
+    g.connect(this.master!);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
   }
 
   unlock(): void {
@@ -218,3 +278,19 @@ export class AudioManager {
     }
   }
 }
+
+/* Chiptune melodies per theme (MIDI note numbers, 0 = rest). 32 steps = 4 bars of 8ths. */
+const midiToFreq = (n: number): number => 440 * Math.pow(2, (n - 69) / 12);
+
+const MUSIC: Record<LevelTheme, { bpm: number; lead: number[]; bass: number[] }> = {
+  meadow: {
+    bpm: 108,
+    lead: [69, 72, 76, 81, 76, 72, 69, 76, 66, 69, 73, 78, 81, 78, 73, 69, 69, 72, 76, 73, 72, 69, 66, 62, 64, 66, 69, 73, 72, 69, 64, 0],
+    bass: [45, 0, 57, 0, 45, 0, 57, 0, 42, 0, 54, 0, 42, 0, 54, 0, 38, 0, 50, 0, 38, 0, 50, 0, 40, 0, 52, 0, 40, 0, 52, 0],
+  },
+  volcanic: {
+    bpm: 92,
+    lead: [57, 60, 64, 67, 64, 60, 57, 55, 54, 57, 60, 64, 60, 57, 54, 52, 55, 57, 60, 62, 60, 57, 55, 52, 52, 54, 57, 60, 57, 54, 52, 0],
+    bass: [33, 0, 45, 0, 33, 0, 45, 0, 30, 0, 42, 0, 30, 0, 42, 0, 31, 0, 43, 0, 31, 0, 43, 0, 40, 0, 52, 0, 40, 0, 52, 0],
+  },
+};

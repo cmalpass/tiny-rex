@@ -11,7 +11,7 @@ tests, and a single-file production build.
 
 ![Main menu](docs/evidence/01-menu.png)
 
-*Main menu — title lockup, controls and quest panels, and your best records.*
+*Main menu — title lockup, level cards, difficulty pills, lifetime stats, controls and quest panels.*
 
 ## How to run
 
@@ -57,10 +57,13 @@ node scripts/capture-evidence.mjs
 | Jump              | `W`, `↑`, or `Space`              | ▲ button       |
 | Pause / resume    | `P` or `Esc`                      | pause button*  |
 | Restart level     | `R`                               | —              |
+| Choose level (menu) | `←` / `→`                       | tap a level card |
+| Choose difficulty (menu) | `↑` / `↓`                 | tap a pill     |
 | Mute sound        | `M`                               | 🔊 button      |
 | Reduced motion    | `V`                               | “Calm” button* |
 | Debug overlay     | `F2`                              | —              |
-| Confirm (menus)   | `Enter`                           | tap            |
+| Confirm / start   | `Enter` or `Space`                | tap            |
+| Gamepad           | D-pad/stick move, **A**/**X** jump, **B**/**Start** confirm | — |
 
 \* On the start menu the **Sound** and **Calm** buttons do the same as `M`/`V`; while
 paused, the on-screen **Resume/Restart/Menu** buttons work by tap. Touch buttons
@@ -74,26 +77,43 @@ time and input buffering, so well-timed jumps land forgivingly.
 
 - **Feel-tuned platforming** — acceleration/friction movement, gravity, coyote time,
   jump buffering, variable jump height, squash & stretch, landing dust, screen shake.
-- **One complete level** (~7,500 px, 3–6 min) with a safe teaching opening, gradually
-  introduced enemies/hazards, a moving-platform lava river, a rockfall stretch, a
-  hidden elevated bonus crystal, a challenging finale, and a glowing goal nest.
+- **Two hand-designed levels** (~7,500 px each, 3–6 min). *Crystal Valley* — a safe
+  teaching opening, gradually introduced enemies/hazards, a moving-platform lava
+  river, a rockfall stretch, a hidden elevated bonus crystal, and a glowing goal
+  nest. *Volcanic Depths* — a night-lit volcanic theme (stars, drifting embers) with
+  a lava-moat stone-hop, twin falling-rock gauntlets, and an ember nest. Pick a level
+  from the menu cards; your choice persists.
 - **Three original enemies** — a wall/ledge-patrolling beetle, a hopping baby
   triceratops, and a sine-wave flying pterosaur. Stomp them from above for points.
 - **Hazards** — lava pools (damage + bounce), spike pits, timed falling rocks with a
   telegraph, and bottomless pits.
-- **3-heart health** with invulnerability flashing, knockback, a death tumble, and
-  respawn at the latest of **3 checkpoints** (nearby enemies reset on respawn so you
-  can never be spawned into a kill).
-- **39 collectible amber crystals** (one 500-pt bonus crystal on a risk/reward route),
-  animated pickups with sparkles and floating score text.
+- **Health that scales with difficulty** (5 / 3 / 2 hearts) with invulnerability
+  flashing, knockback, a death tumble, and respawn at the latest of **3 checkpoints**
+  (nearby enemies reset on respawn so you can never be spawned into a kill).
+- **Amber crystals** — 39 in Crystal Valley and 30 in Volcanic Depths (one 500-pt
+  bonus crystal each on a risk/reward route), animated pickups with sparkles and
+  floating score text.
+- **Three difficulties** — Easy (5 hearts, slower enemies), Normal (3 hearts),
+  Hard (2 hearts, faster enemies); the choice persists across sessions.
+- **Star ratings** — each run earns 1–3 stars: finish the level, keep ≥2 hearts,
+  collect ≥80% of its crystals. Best stars per level are saved and shown on the menu
+  cards and the victory screen ("NEW BEST STARS!" when you improve).
+- **Lifetime stats** — plays, deaths, crystals collected, and first-play date,
+  shown on the main menu and stored in `localStorage`.
 - **Score & records** — crystals, stomps, checkpoints, remaining hearts, and a
-  completion-time bonus; best score and fastest time persist in `localStorage`.
+  completion-time bonus; best score and fastest time persist per level.
 - **Full state flow** — animated menu → play → pause → checkpoint/damage/death →
   respawn → game over → try again → victory results → play again/menu.
 - **Procedural audio** — Web Audio synth SFX for jump, collect, bonus, stomp, hurt,
   death, checkpoint, crumble, rocks, victory, and UI, plus a subtle ambient wind
-  layer with occasional bird chirps. Audio starts only after the first user gesture;
-  mute toggle (`M` / 🔊).
+  layer with occasional bird chirps. Each level also has its own **chiptune music
+  loop** (lead + bass, scheduled ahead of time) that plays during a run and pauses
+  with the game. Audio starts only after the first user gesture; mute toggle
+  (`M` / 🔊).
+- **Gamepad support** — auto-detected and polled each frame: D-pad or left stick to
+  move (and navigate the menu), **A**/**X** to jump, **B**/**Start** to confirm.
+- **Mobile haptics** — where the device supports `navigator.vibrate`, a short pulse
+  on stomps and a double pattern on taking damage.
 - **Accessibility & polish** — reduced-motion mode (no screen shake, fewer
   particles), high-contrast HUD text, ≥44 px touch targets, concise status messages,
   auto-pause when the tab is hidden, and an `F2` debug overlay (FPS, position,
@@ -128,7 +148,7 @@ src/
   sprite.ts      Procedural drawing of Rex + all enemies.
   game.ts        State machine, fixed-timestep loop, HUD, menus.
   touch-controls.ts  DOM touch-button bindings.
-  level-data.ts  LEVEL_DATA — the hand-designed level layout.
+  level-data.ts  LEVELS — the two hand-designed levels (Crystal Valley, Volcanic Depths).
   util.ts        Small shared helpers (clamp, lerp, overlap, rng, fmtTime).
 tests/         Vitest suite: physics, state machine, level-data integrity.
 README.md      This file.
@@ -165,6 +185,7 @@ changes are one-line edits:
   `maxShake` (screen-shake ceiling, 0 in reduced-motion mode).
 - `CFG.killY` (680) — the y below which the player is considered lost in a pit.
 
-Level layout lives in `LEVEL_DATA`: platforms, crystals, hazards, checkpoints,
-enemies, and decoration are plain arrays, so new sections can be added by appending
-entries (ground tops sit at y = 460; the level is 7,550 px wide).
+Level layout lives in `LEVELS` in `src/level-data.ts`: each level's platforms,
+crystals, hazards, checkpoints, enemies, and decoration are plain arrays, so new
+sections can be added by appending entries (ground tops sit at y = 460; each level
+is 7,550 px wide). `LEVEL_DATA` remains exported as an alias for level 1.

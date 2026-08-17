@@ -29,10 +29,13 @@ export class Enemy {
   ay: number;
   range: number;
   private readonly level: Level;
+  /** Speed multiplier (difficulty). */
+  private readonly speedMult: number;
 
-  constructor(d: EnemyDef, level: Level) {
+  constructor(d: EnemyDef, level: Level, speedMult = 1) {
     this.type = d.type;
     this.level = level;
+    this.speedMult = speedMult;
     this.x = d.x;
     this.y = d.y;
     this.spawnX = d.x;
@@ -81,7 +84,7 @@ export class Enemy {
   }
 
   private updateBeetle(dt: number): void {
-    const speed = 62;
+    const speed = 62 * this.speedMult;
     this.x += this.dir * speed * dt;
     // Turn around at walls, patrol bounds, or ledges (no ground ahead).
     const frontX = this.dir > 0 ? this.x + this.w + 3 : this.x - 3;
@@ -111,7 +114,7 @@ export class Enemy {
     this.hopTimer -= dt;
     if (this.grounded && this.hopTimer <= 0) {
       this.vy = -440;
-      this.vx = this.dir * 78;
+      this.vx = this.dir * 78 * this.speedMult;
       this.hopTimer = 1.35 + Math.random() * 0.5;
       this.squash = 1;
     }
@@ -120,19 +123,19 @@ export class Enemy {
     if (this.x < this.minX) {
       this.x = this.minX;
       this.dir = 1;
-      if (this.grounded) this.vx = 78;
+      if (this.grounded) this.vx = 78 * this.speedMult;
     }
     if (this.x + this.w > this.maxX) {
       this.x = this.maxX - this.w;
       this.dir = -1;
-      if (this.grounded) this.vx = -78;
+      if (this.grounded) this.vx = -78 * this.speedMult;
     }
     this.phase += dt * (this.grounded ? 6 : 16);
   }
 
   private updatePtero(dt: number): void {
-    // Figure-eight-ish wave around its anchor.
-    this.phase += dt;
+    // Figure-eight-ish wave around its anchor; speed scales with difficulty.
+    this.phase += dt * this.speedMult;
     this.x = this.ax + Math.sin(this.phase * 0.9 + this.phase0) * this.range;
     this.y = this.ay + Math.sin(this.phase * 1.7 + this.phase0 * 2) * 46;
   }

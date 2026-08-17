@@ -8,6 +8,15 @@ import type { GameCtx } from './ctx';
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'hurt' | 'dead' | 'victory';
 export type DamageKind = 'spikes' | 'lava' | 'enemy' | 'rock' | 'pit';
 
+/** Haptic pulse where supported (mobile); silent no-op elsewhere. */
+function vibrate(pattern: number | number[]): void {
+  try {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(pattern);
+  } catch {
+    /* no haptics */
+  }
+}
+
 export class Player {
   w = CFG.player.w;
   h = CFG.player.h;
@@ -20,7 +29,9 @@ export class Player {
   grounded = false;
   standingOn: Platform | null = null;
   coyoteT = 0;
-  hearts = CFG.player.maxHearts;
+  /** Max hearts — set by the Game from the active difficulty. */
+  maxHearts: number = CFG.player.maxHearts;
+  hearts: number = CFG.player.maxHearts;
   invulnT = 0;
   dead = false;
   deathT = 0;
@@ -50,7 +61,7 @@ export class Player {
     this.grounded = false;
     this.standingOn = null;
     this.coyoteT = 0;
-    this.hearts = CFG.player.maxHearts;
+    this.hearts = this.maxHearts;
     this.invulnT = first ? 0 : CFG.player.respawnInvuln;
     this.dead = false;
     this.deathT = 0;
@@ -276,6 +287,7 @@ export class Player {
         this.game.burst(e.x + e.w / 2, e.y + e.h / 2, 14, this.enemyColors(e.type), 'chunk', 200);
         this.game.addShake(3);
         this.game.audio.play('stomp');
+        vibrate(30);
       } else if (this.invulnT <= 0) {
         this.damage(e, 'enemy');
       }
@@ -310,6 +322,7 @@ export class Player {
     this.hurtT = 0.5;
     this.game.audio.play('hurt');
     this.game.addShake(6);
+    vibrate([60, 40, 60]);
     this.game.burst(this.x + this.w / 2, this.y + this.h / 2, 10, ['#ff8a5c', '#ffd257'], 'dot', 180);
     if (this.hearts <= 0) {
       this.die(kind);
