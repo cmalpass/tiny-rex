@@ -189,3 +189,8 @@ Level layout lives in `LEVELS` in `src/level-data.ts`: each level's platforms,
 crystals, hazards, checkpoints, enemies, and decoration are plain arrays, so new
 sections can be added by appending entries (ground tops sit at y = 460; each level
 is 7,550 px wide). `LEVEL_DATA` remains exported as an alias for level 1.
+
+## License
+
+MIT — see [LICENSE](LICENSE). All art, music, and code are original and
+generated procedurally at runtime.
