@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clamp, lerp, overlap, fmtTime, mulberry32 } from '../src/util';
+import { clamp, lerp, overlap, fmtTime, mulberry32, easeOutBack } from '../src/util';
 
 describe('clamp', () => {
   it('keeps values inside the range', () => {
@@ -15,6 +15,24 @@ describe('lerp', () => {
     expect(lerp(0, 10, 0.5)).toBe(5);
     expect(lerp(0, 10, 1)).toBe(10);
     expect(lerp(10, 0, 0.5)).toBe(5);
+  });
+});
+
+describe('easeOutBack', () => {
+  it('starts at 0 and lands on 1', () => {
+    expect(easeOutBack(0)).toBeCloseTo(0);
+    expect(easeOutBack(1)).toBeCloseTo(1);
+  });
+
+  it('overshoots past 1 mid-ease, peaking near the middle, then lands exactly on 1', () => {
+    expect(easeOutBack(0.58)).toBeGreaterThan(1.05);
+    expect(easeOutBack(0.95)).toBeGreaterThan(1);
+    expect(easeOutBack(1)).toBeCloseTo(1);
+  });
+
+  it('clamps out-of-range input', () => {
+    expect(easeOutBack(-1)).toBeCloseTo(0);
+    expect(easeOutBack(2)).toBeCloseTo(1);
   });
 });
 

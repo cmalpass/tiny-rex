@@ -37,6 +37,8 @@ export class Background {
   private readonly stars: Star[] = [];
   /** Current palette: meadow = day valley, volcanic = night ember field. */
   theme: LevelTheme = 'meadow';
+  /** Calm mode: suppress ambient life (petals, birds, extra embers). */
+  calm = false;
 
   constructor() {
     const rng = mulberry32(20260816);
@@ -178,6 +180,68 @@ export class Background {
       ctx.beginPath();
       ctx.ellipse(px + h.w / 2, 520, h.w / 2, h.h, 0, Math.PI, TAU);
       ctx.fill();
+    }
+
+    // Ambient life (skipped in calm mode)
+    if (!this.calm) {
+      if (night) this.drawEmbers(ctx, t);
+      else {
+        this.drawBirds(ctx, t);
+        this.drawPetals(ctx, t);
+      }
+    }
+  }
+
+  /** Occasional birds crossing the valley sky. */
+  private drawBirds(ctx: CanvasRenderingContext2D, t: number): void {
+    for (let i = 0; i < 2; i++) {
+      const period = 16 + i * 7;
+      const prog = ((t + i * 6.5) % period) / period;
+      const x = -40 + prog * (VW + 80);
+      const y = 74 + i * 34 + Math.sin(t * 1.4 + i * 2) * 10;
+      const flap = Math.sin(t * 10 + i * 2.1) * 5;
+      ctx.strokeStyle = 'rgba(70,84,96,0.8)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y - flap * 0.6);
+      ctx.quadraticCurveTo(x - 4, y - 4 - flap, x, y);
+      ctx.quadraticCurveTo(x + 4, y - 4 - flap, x + 9, y - flap * 0.6);
+      ctx.stroke();
+    }
+  }
+
+  /** Petals drifting down the meadow on a lazy breeze. */
+  private drawPetals(ctx: CanvasRenderingContext2D, t: number): void {
+    const span = VW + 120;
+    for (let i = 0; i < 9; i++) {
+      const px = (((i * 173 + t * (22 + (i % 4) * 7)) % span) + span) % span - 60;
+      const sway = Math.sin(t * 1.6 + i * 1.7) * 18;
+      const py = (((i * 97 + t * (30 + (i % 3) * 9)) % (VH + 40)) + VH + 40) % (VH + 40) - 20;
+      const a = 0.5 + 0.25 * Math.sin(t * 2.2 + i);
+      ctx.save();
+      ctx.translate(px + sway, py);
+      ctx.rotate(Math.sin(t * 1.1 + i * 2.3) * 0.9);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? '#ffc9d6' : '#ffd9e2';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 5, 2.6, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Extra embers spiralling up from below (night). */
+  private drawEmbers(ctx: CanvasRenderingContext2D, t: number): void {
+    const span = VW + 80;
+    const riseSpan = VH * 0.92;
+    for (let i = 0; i < 14; i++) {
+      const px = (((i * 131 + t * (7 + (i % 3) * 4)) % span) + span) % span - 40;
+      const rise = ((i * 71 + t * (20 + (i % 4) * 8)) % riseSpan + riseSpan) % riseSpan;
+      const py = VH - rise;
+      const a = 0.25 + 0.5 * Math.abs(Math.sin(t * 3 + i * 1.9));
+      ctx.fillStyle = `rgba(255,${140 + (i % 3) * 40},60,${a.toFixed(2)})`;
+      ctx.fillRect(px, py, 2.4, 2.4);
     }
   }
 

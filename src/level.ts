@@ -4,6 +4,7 @@ import type { GameCtx } from './ctx';
 import type { Player } from './player';
 import { Platform } from './platform';
 import { Crystal } from './crystal';
+import { HeartPickup } from './heart';
 import { Hazard } from './hazard';
 import { Checkpoint } from './checkpoint';
 import { Enemy } from './enemy';
@@ -13,6 +14,7 @@ export class Level {
   width: number;
   platforms: Platform[];
   crystals: Crystal[];
+  hearts: HeartPickup[];
   hazards: Hazard[];
   checkpoints: Checkpoint[];
   enemies: Enemy[];
@@ -29,6 +31,7 @@ export class Level {
     this.enemySpeed = enemySpeed;
     this.platforms = d.platforms.map((p) => new Platform(p));
     this.crystals = d.crystals.map((c) => new Crystal(c.x, c.y, c.bonus ?? false));
+    this.hearts = (d.hearts ?? []).map((h) => new HeartPickup(h.x, h.y));
     this.hazards = d.hazards.map((h) => new Hazard(h, this, game));
     this.checkpoints = d.checkpoints.map((c) => new Checkpoint(c.x, c.y, game));
     this.enemies = d.enemies.map((e) => {
@@ -79,6 +82,7 @@ export class Level {
       p.prevY = undefined;
     }
     for (const c of this.crystals) c.collected = false;
+    for (const h of this.hearts) h.collected = false;
     for (const e of this.enemies) e.reset();
     // Restore each hazard's own interval (the original hard-coded 2.2,
     // clobbering hazards configured with a different one).
