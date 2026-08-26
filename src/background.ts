@@ -78,11 +78,16 @@ export class Background {
       skyTop: '#140c26', skyMid: '#2b1740', skyBot: '#4a2138',
       mtn: '#362544', hill: '#4d2f52',
     },
+    frost: {
+      skyTop: '#7fb5e6', skyMid: '#bfe0f5', skyBot: '#eef7fc',
+      mtn: '#9db8d6', hill: '#cfe3f0',
+    },
   } as const;
 
   draw(ctx: CanvasRenderingContext2D, camX: number, t: number): void {
     const P = Background.PALETTES[this.theme];
     const night = this.theme === 'volcanic';
+    const frost = this.theme === 'frost';
 
     // Sky
     const sky = ctx.createLinearGradient(0, 0, 0, VH);
@@ -116,14 +121,15 @@ export class Background {
       ctx.arc(mx + 10, my - 6, 22, 0, TAU);
       ctx.fill();
     } else {
-      // Sun with soft glow
+      // Sun with soft glow (a pale, cold sun on the frostpeak)
       const sx = 150 - camX * 0.02, sy = 86;
+      const warm = frost ? 'rgba(255,255,255,0.85)' : 'rgba(255,244,200,0.9)';
       const sg = ctx.createRadialGradient(sx, sy, 10, sx, sy, 90);
-      sg.addColorStop(0, 'rgba(255,244,200,0.9)');
-      sg.addColorStop(1, 'rgba(255,244,200,0)');
+      sg.addColorStop(0, warm);
+      sg.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = sg;
       ctx.fillRect(sx - 90, sy - 90, 180, 180);
-      ctx.fillStyle = '#ffe9a8';
+      ctx.fillStyle = frost ? '#f8fbff' : '#ffe9a8';
       ctx.beginPath();
       ctx.arc(sx, sy, 34, 0, TAU);
       ctx.fill();
@@ -140,8 +146,8 @@ export class Background {
       ctx.lineTo(px + m.w, 420);
       ctx.closePath();
       ctx.fill();
-      // Snow cap (day) / faint ember rim (night)
-      ctx.fillStyle = night ? 'rgba(255,140,60,0.28)' : 'rgba(255,255,255,0.75)';
+      // Snow cap (day) / faint ember rim (night) / bright cap (frost)
+      ctx.fillStyle = night ? 'rgba(255,140,60,0.28)' : frost ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.75)';
       ctx.beginPath();
       ctx.moveTo(px + m.w * m.peak, 420 - m.h);
       ctx.lineTo(px + m.w * m.peak - m.w * 0.09, 420 - m.h + 26);
@@ -185,10 +191,26 @@ export class Background {
     // Ambient life (skipped in calm mode)
     if (!this.calm) {
       if (night) this.drawEmbers(ctx, t);
+      else if (frost) this.drawSnow(ctx, t);
       else {
         this.drawBirds(ctx, t);
         this.drawPetals(ctx, t);
       }
+    }
+  }
+
+  /** Drifting snowflakes for the frostpeak pass. */
+  private drawSnow(ctx: CanvasRenderingContext2D, t: number): void {
+    for (let i = 0; i < 26; i++) {
+      const speed = 26 + (i % 5) * 9;
+      const y = ((t * speed + i * 173) % (VH + 40)) - 20;
+      const sway = Math.sin(t * 1.1 + i * 1.7) * 22;
+      const x = ((i * 251) % (VW + 80)) + sway - 40;
+      const r = 1.4 + (i % 3) * 0.9;
+      ctx.fillStyle = i % 4 === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(235,246,255,0.8)';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fill();
     }
   }
 

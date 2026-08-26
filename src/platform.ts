@@ -41,7 +41,7 @@ export class Platform {
     this.seed = (d.x * 7 + d.y * 13) % 97;
   }
 
-  update(t: number): void {
+  update(_dt: number, t: number): void {
     if (this.type === 'mover' && this.amp > 0) {
       const off = Math.sin(t * this.speed + this.phase) * this.amp;
       this.x = this.axis === 'x' ? this.baseX + off : this.baseX;
@@ -58,5 +58,12 @@ export class Platform {
 
   solid(): boolean {
     return this.active;
+  }
+
+  /** Restore initial state (used on level reset / checkpoint respawn). */
+  reset(): void {
+    this.active = true;
+    this.prevX = this.x;
+    this.prevY = this.y;
   }
 }

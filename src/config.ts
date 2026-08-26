@@ -40,6 +40,10 @@ export const CFG = {
   /** Crystal combo: pickups inside `window` seconds chain a +`bonus` per step. */
   combo: { window: 2.0, bonus: 25, maxSteps: 12 },
   killY: 680, // falling below this = pit death
+  /** Spring pads: launch velocity (~270px pop, v²/2g). */
+  spring: { vel: 900 },
+  /** Spitter enemy: firing range, cooldown, and projectile tuning. */
+  spitter: { range: 520, band: 150, fireCd: 1.8, projSpeed: 1.06, projGravity: 700 },
 } as const;
 
 export const VW = CFG.view.w;

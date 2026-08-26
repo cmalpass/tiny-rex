@@ -19,6 +19,9 @@ import type { GameCtx } from './ctx';
 import type { Checkpoint } from './checkpoint';
 import type { Platform } from './platform';
 import type { Hazard } from './hazard';
+import { CheatSystem } from './cheats';
+import type { CheatId } from './cheats';
+import type { Door } from './door';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'dying' | 'gameover' | 'victory';
 
@@ -110,6 +113,13 @@ export class Game implements GameCtx {
   /** Victory stars already chimed (matches the staggered star pops). */
   starChime = 0;
   results: RunResults | null = null;
+  /** Cheat: Rex is invulnerable while on. */
+  godMode = false;
+  /** Cheat: rainbow Rex skin (persists across runs). */
+  rainbow = false;
+  /** Cheat queue: apply max hearts once a player exists. */
+  private maxHeartsCheat = false;
+  private readonly cheats = new CheatSystem();
   /** Selected level index (persisted). */
   levelIdx: number = clamp(Store.get('tinyrex_level', 0), 0, LEVELS.length - 1);
   /** Active difficulty (persisted). */
@@ -206,6 +216,12 @@ export class Game implements GameCtx {
     this.player = new Player(this.level!.start.x, this.level!.start.y, this);
     this.player.maxHearts = this.maxHearts;
     this.player.hearts = this.maxHearts;
+    this.player.rainbow = this.rainbow;
+    if (this.maxHeartsCheat) {
+      this.maxHeartsCheat = false;
+      this.player.maxHearts = Game.MAX_HEARTS_CAP;
+      this.player.hearts = this.player.maxHearts;
+    }
     // Fresh run: clear any stale jump press (e.g. Space that started the game).
     this.input.jumpBufferT = -1;
     this.score = 0;
@@ -278,6 +294,11 @@ export class Game implements GameCtx {
   }
 
   handleKey(k: GameKey): void {
+    // Cheat codes: every press in the menu or in play feeds the detector.
+    if (this.state === 'menu' || this.state === 'playing') {
+      const fired = this.cheats.press(k, performance.now());
+      if (fired) this.applyCheat(fired);
+    }
     if (k === 'visibility' && this.state === 'playing') {
       this.pause();
       return;
@@ -346,6 +367,36 @@ export class Game implements GameCtx {
 
   addStatus(msg: string, color?: string): void {
     this.status = { msg, color: color || '#fff', t: 2.4 };
+  }
+
+  /** Apply a matched cheat code (see CHEATS in src/cheats.ts). */
+  private applyCheat(id: CheatId): void {
+    this.audio.play('cheat');
+    const p = this.player;
+    if (id === 'rainbow') {
+      this.rainbow = !this.rainbow;
+      if (p) p.rainbow = this.rainbow;
+      if (this.state === 'playing') this.addStatus(this.rainbow ? 'Rainbow Rex, on!' : 'Rainbow Rex, off', '#ff9ff0');
+    } else if (id === 'god') {
+      this.godMode = !this.godMode;
+      if (this.state === 'playing') this.addStatus(this.godMode ? 'God mode, on!' : 'God mode, off', '#8fe3ff');
+      if (p) this.burst(p.x + p.w / 2, p.y + p.h / 2, 16, ['#8fe3ff', '#fff'], 'dot', 160);
+    } else if (id === 'maxhearts') {
+      if (p) {
+        p.maxHearts = Game.MAX_HEARTS_CAP;
+        p.hearts = p.maxHearts;
+        this.burst(p.x + p.w / 2, p.y + p.h / 2, 16, ['#ff8fa3', '#fff'], 'dot', 160);
+      } else {
+        this.maxHeartsCheat = true; // applies when the next run starts
+      }
+      if (this.state === 'playing') this.addStatus('Max hearts!', '#ff8fa3');
+    } else if (id === 'surge') {
+      if (this.state === 'playing' && p) {
+        this.score += 1000;
+        this.texts.push(new FloatingText(p.x + p.w / 2, p.y - 18, '+1000', '#8fe3ff'));
+        this.addStatus('Score surge +1000!', '#8fe3ff');
+      }
+    }
   }
 
   addShake(m: number): void {
@@ -631,11 +682,23 @@ export class Game implements GameCtx {
       if (e.x + e.w < camX - 60 || e.x > camX + VW + 60) continue;
       if (e.type === 'beetle') Sprite.drawBeetle(ctx, e);
       else if (e.type === 'trike') Sprite.drawTrike(ctx, e);
+      else if (e.type === 'spitter') Sprite.drawSpitter(ctx, e, this.time);
       else Sprite.drawPtero(ctx, e);
+    }
+
+    // Springs & pressure plates (under the player)
+    for (const s of this.level!.springs) {
+      if (s.x + s.w > camX - 40 && s.x < camX + VW + 40) s.draw(ctx, this.time);
+    }
+    for (const pl of this.level!.plates) {
+      if (pl.x + pl.w > camX - 40 && pl.x < camX + VW + 40) pl.draw(ctx);
     }
 
     // Player
     if (this.player) Sprite.drawRex(ctx, this.player, this.time);
+
+    // Goo globs fly in front of Rex
+    for (const pr of this.level!.projectiles) pr.draw(ctx, this.time);
 
     // Particles & floating text
     for (const p of this.particles) p.draw(ctx);
@@ -662,6 +725,10 @@ export class Game implements GameCtx {
 
   drawPlatform(ctx: CanvasRenderingContext2D, p: Platform): void {
     if (!p.active) return;
+    if (p.type === 'door') {
+      (p as Door).draw(ctx, this.time);
+      return;
+    }
     if (p.type === 'ground') {
       ctx.fillStyle = '#8a5f3c';
       ctx.fillRect(p.x, p.y, p.w, p.h);
@@ -1262,11 +1329,12 @@ export class Game implements GameCtx {
     this.bg.draw(ctx, camX, this.time);
     // Draw a slice of the level floor for grounding
     const volcanic = this.bg.theme === 'volcanic';
-    ctx.fillStyle = volcanic ? '#42304a' : '#8a5f3c';
+    const frost = this.bg.theme === 'frost';
+    ctx.fillStyle = volcanic ? '#42304a' : frost ? '#8fa8c4' : '#8a5f3c';
     ctx.fillRect(0, 460, VW, 80);
-    ctx.fillStyle = volcanic ? '#5c4258' : '#5da854';
+    ctx.fillStyle = volcanic ? '#5c4258' : frost ? '#e8f4fc' : '#5da854';
     ctx.fillRect(0, 460, VW, 12);
-    ctx.fillStyle = volcanic ? '#8a5a78' : '#6fbe62';
+    ctx.fillStyle = volcanic ? '#8a5a78' : frost ? '#ffffff' : '#6fbe62';
     ctx.fillRect(0, 460, VW, 5);
     // Decor
     drawDecor(ctx, { type: 'tree', x: 130, s: 1.1 }, this.time, 460);
@@ -1290,6 +1358,7 @@ export class Game implements GameCtx {
       invulnT: 0,
       dead: false,
       rot: 0,
+      rainbow: this.rainbow,
     };
     Sprite.drawRex(ctx, fakeP, this.time);
     // Title block (gently floating, theme-aware)
@@ -1304,6 +1373,9 @@ export class Game implements GameCtx {
     if (volcanic) {
       tg.addColorStop(0, '#ffd9a0');
       tg.addColorStop(1, '#ff7a5c');
+    } else if (frost) {
+      tg.addColorStop(0, '#eaf7ff');
+      tg.addColorStop(1, '#7fb5e6');
     } else {
       tg.addColorStop(0, '#c8f0a0');
       tg.addColorStop(1, '#5da854');
@@ -1380,24 +1452,25 @@ export class Game implements GameCtx {
       ctx.fillStyle = '#cfe0f2';
       ctx.fillText(r, qx + 38, y);
     });
-    // Level cards
+    // Level cards (one per level, centred row)
     const cardY = 232, cardH = 150;
-    const cardXs = [280, 492];
-    const cardAccents = ['#9ff0a8', '#ff9d7a'];
+    const cardW = 170, cardGap = 16;
+    const cardX0 = VW / 2 - (cardW * LEVELS.length + cardGap * (LEVELS.length - 1)) / 2;
+    const cardAccents = ['#9ff0a8', '#ff9d7a', '#8fd8ff'];
     LEVELS.forEach((li, i) => {
-      const cx0 = cardXs[i];
-      const cw = 188;
+      const cx0 = cardX0 + i * (cardW + cardGap);
+      const cw = cardW;
       const selected = i === this.levelIdx;
       ctx.fillStyle = 'rgba(16,26,40,0.66)';
       this.roundRect(ctx, cx0, cardY, cw, cardH, 14);
       ctx.fill();
-      ctx.fillStyle = cardAccents[i];
+      ctx.fillStyle = cardAccents[i % cardAccents.length];
       this.roundRect(ctx, cx0, cardY, cw, 6, 3);
       ctx.fill();
       // Name
-      ctx.font = '800 17px ' + FONT_STACK;
-      ctx.fillStyle = selected ? '#ffe28a' : cardAccents[i];
-      this.drawTracked(ctx, li.subtitle, cx0 + cw / 2, cardY + 36, 2, false);
+      ctx.font = '800 13px ' + FONT_STACK;
+      ctx.fillStyle = selected ? '#ffe28a' : cardAccents[i % cardAccents.length];
+      this.drawTracked(ctx, li.subtitle, cx0 + cw / 2, cardY + 36, 1.5, false);
       // Star progress
       const bStars = getBestStars(i);
       for (let s = 0; s < 3; s++) {
@@ -1415,7 +1488,7 @@ export class Game implements GameCtx {
       }
       // Records
       const bb = getBest(i);
-      ctx.font = '600 13px ' + FONT_STACK;
+      ctx.font = '600 12px ' + FONT_STACK;
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(220,232,245,0.85)';
       ctx.fillText('Score ' + (bb.score || '—'), cx0 + cw / 2, cardY + 98);
@@ -1454,8 +1527,15 @@ export class Game implements GameCtx {
     // Bottom bar: Start + toggles (sitting on the ground strip for contrast)
     this.uiButtons = [
       // Tappable level cards (drawn above, hit-tested here)
-      { x: cardXs[0], y: cardY, w: 188, h: cardH, label: LEVELS[0].name, card: true, action: () => this.selectLevel(0) },
-      { x: cardXs[1], y: cardY, w: 188, h: cardH, label: LEVELS[1].name, card: true, action: () => this.selectLevel(1) },
+      ...LEVELS.map((li, i) => ({
+        x: cardX0 + i * (cardW + cardGap),
+        y: cardY,
+        w: cardW,
+        h: cardH,
+        label: li.name,
+        card: true,
+        action: () => this.selectLevel(i),
+      })),
       // Tappable difficulty pills (drawn above)
       ...pills.map((p) => ({ x: p.x, y: 394, w: 90, h: 30, label: p.label, card: true, action: () => this.selectDifficulty(p.d) })),
       { x: VW / 2 - 100, y: 470, w: 200, h: 48, label: 'Start Game', action: () => this.startGame() },

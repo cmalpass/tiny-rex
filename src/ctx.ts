@@ -9,6 +9,8 @@ export interface SfxOptions {
   healed?: boolean;
   /** Which victory star is popping (0–2) — raises the chime a touch each time. */
   starIndex?: number;
+  /** Pressure plate just pressed (true) or released (false). */
+  pressed?: boolean;
 }
 
 /** Minimal SFX surface that entities need from the audio manager. */
@@ -26,6 +28,8 @@ export interface GameCtx {
   readonly audio: Sfx;
   /** True when the user has enabled calm mode (fewer particles, no shake). */
   reducedMotion: boolean;
+  /** Cheat code: Rex cannot lose hearts while this is on. */
+  godMode: boolean;
   /** Seconds since the current victory sequence started. */
   victoryT: number;
   /** Stomp count for the current run. */
