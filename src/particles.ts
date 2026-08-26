@@ -1,7 +1,7 @@
 import { clamp } from './util';
 import { TAU, FONT_STACK } from './config';
 
-export type ParticleType = 'dot' | 'dust' | 'chunk' | 'rect' | 'ring';
+export type ParticleType = 'dot' | 'dust' | 'chunk' | 'rect' | 'ring' | 'ember';
 
 export interface ParticleOpts {
   x: number;
@@ -74,6 +74,16 @@ export class Particle {
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.size * (1.6 - a * 1.2), 0, TAU);
       ctx.stroke();
+    } else if (this.type === 'ember') {
+      // Glowing spark: soft halo + bright core, flickering as it fades.
+      ctx.globalAlpha = a * 0.35;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * 2.2 * a + 1, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = a;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * a + 0.5, 0, TAU);
+      ctx.fill();
     } else {
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.size * a + 0.5, 0, TAU);

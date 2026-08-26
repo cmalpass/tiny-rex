@@ -67,14 +67,17 @@ describe('LEVEL_DATA — Crystal Valley integrity', () => {
 });
 
 describe('LEVELS registry', () => {
-  it('exposes all three levels with distinct themes', () => {
-    expect(LEVELS).toHaveLength(3);
+  it('exposes all four levels with distinct themes', () => {
+    expect(LEVELS).toHaveLength(4);
     expect(LEVELS[0].id).toBe(0);
     expect(LEVELS[0].theme).toBe('meadow');
     expect(LEVELS[1].id).toBe(1);
     expect(LEVELS[1].theme).toBe('volcanic');
     expect(LEVELS[2].id).toBe(2);
     expect(LEVELS[2].theme).toBe('frost');
+    expect(LEVELS[3].id).toBe(3);
+    expect(LEVELS[3].name).toBe('Molten Nest');
+    expect(LEVELS[3].theme).toBe('volcanic');
     expect(LEVELS[0].def).toBe(LEVEL_DATA);
   });
 });
@@ -288,12 +291,101 @@ describe('LEVEL_3 — Frostpeak Pass integrity', () => {
   });
 });
 
+describe('LEVEL_4 — Molten Nest integrity', () => {
+  const L4 = LEVELS[3].def;
+
+  it('has the expected top-level shape', () => {
+    expect(L4.width).toBe(3950);
+    expect(L4.startX).toBe(120);
+    expect(L4.startY).toBe(414);
+    expect(L4.startGroundY).toBe(460);
+    expect(L4.goal).toEqual({ x: 3780, y: 460 });
+  });
+
+  it('defines a boss arena with three crystal orbs', () => {
+    expect(L4.boss).toBeTruthy();
+    expect(L4.boss!.x).toBeGreaterThan(L4.boss!.minX);
+    expect(L4.boss!.x + 120).toBeLessThan(L4.boss!.maxX + 120); // boss w=120
+    expect(L4.orbs).toHaveLength(3);
+    for (const o of L4.orbs ?? []) {
+      expect(o.x).toBeGreaterThan(0);
+      expect(o.x).toBeLessThan(L4.width);
+      expect(o.y).toBeGreaterThan(150);
+      expect(o.y).toBeLessThan(460);
+    }
+  });
+
+  it('keeps the boss patrol and spawn on the arena floor', () => {
+    const arena = L4.platforms.find(
+      (p) => p.type === 'ground' && p.x >= 2200 && p.x < 2400,
+    );
+    expect(arena, 'arena floor').toBeTruthy();
+    expect(L4.boss!.y + 104).toBe(460); // boss h=104 stands on the ground line
+    expect(L4.boss!.minX).toBeGreaterThanOrEqual(arena!.x);
+    expect(L4.boss!.maxX + 120).toBeLessThanOrEqual(arena!.x + arena!.w);
+  });
+
+  it('gives both arena walls a walk-under gap at ground level', () => {
+    const walls = L4.platforms.filter(
+      (p) => p.type === 'stone' && p.w === 40 && p.x >= 2200,
+    );
+    expect(walls).toHaveLength(2);
+    for (const w of walls) {
+      // Wall bottom must sit above the ground line so the player can pass under.
+      expect(w.y + w.h, 'wall at x=' + w.x).toBeLessThan(460);
+    }
+  });
+
+  it('places the nest gate on the exit floor ahead of the goal', () => {
+    expect(L4.doors).toHaveLength(1);
+    const d = L4.doors![0];
+    expect(d.y + d.h).toBe(460);
+    expect(d.x).toBeLessThan(L4.goal.x);
+    const exit = L4.platforms.find(
+      (p) => p.type === 'ground' && d.x >= p.x && d.x + d.w <= p.x + p.w,
+    );
+    expect(exit, 'gate must sit on solid ground').toBeTruthy();
+  });
+
+  it('keeps every ground gap inside a running jump (~235px)', () => {
+    const grounds = L4.platforms
+      .filter((p) => p.type === 'ground')
+      .sort((a, b) => a.x - b.x);
+    for (let i = 0; i < grounds.length - 1; i++) {
+      const width = grounds[i + 1].x - (grounds[i].x + grounds[i].w);
+      expect(width, 'gap ' + (grounds[i].x + grounds[i].w) + '..' + grounds[i + 1].x).toBeLessThanOrEqual(235);
+    }
+  });
+
+  it('keeps lava pools inside ground gaps, never under solid ground', () => {
+    const grounds = L4.platforms.filter((p) => p.type === 'ground');
+    for (const hz of L4.hazards) {
+      if (hz.type !== 'lava') continue;
+      const under = grounds.some((p) => hz.x + 40 < p.x + p.w && hz.x + hz.w - 40 > p.x);
+      expect(under, 'lava at x=' + hz.x).toBe(false);
+    }
+  });
+
+  it('places the checkpoint on ground and the beetle inside its ground segment', () => {
+    const grounds = L4.platforms.filter((p) => p.type === 'ground');
+    for (const cp of L4.checkpoints) {
+      expect(grounds.some((p) => cp.x >= p.x && cp.x <= p.x + p.w), 'checkpoint').toBe(true);
+    }
+    for (const e of L4.enemies) {
+      expect(
+        grounds.some((p) => (e.minX ?? 0) >= p.x && (e.maxX ?? 0) <= p.x + p.w),
+        'enemy ' + e.type,
+      ).toBe(true);
+    }
+  });
+});
+
 describe('Hidden fossils (all hand-built levels)', () => {
-  it('places exactly three fossils per level (nine total)', () => {
+  it('places exactly three fossils per level (twelve total)', () => {
     for (const l of LEVELS) {
       expect(l.def.fossils, l.name).toHaveLength(3);
     }
-    expect(LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0)).toBe(9);
+    expect(LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0)).toBe(12);
   });
 
   it('keeps every fossil inside the level bounds, above the ground line', () => {

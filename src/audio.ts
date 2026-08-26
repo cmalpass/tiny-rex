@@ -319,6 +319,19 @@ export class AudioManager {
           this.tone({ freq: f, dur: 0.09, type: 'sine', vol: 0.16, delay: i * 0.05 }),
         );
         break;
+      case 'boss':
+        // Low magma roar: descending saw growl over a heavy thump.
+        this.tone({ freq: 110, to: 55, dur: 0.55, type: 'sawtooth', vol: 0.26 });
+        this.tone({ freq: 220, to: 90, dur: 0.5, type: 'square', vol: 0.1, delay: 0.05 });
+        this.noiseBurst({ dur: 0.4, vol: 0.24, freq: 240 });
+        break;
+      case 'orb':
+        // Crystal shatter: bright descending glassy arpeggio.
+        [1568, 1244, 988, 784].forEach((f, i) =>
+          this.tone({ freq: f, dur: 0.09, type: 'sine', vol: 0.18, delay: i * 0.045 }),
+        );
+        this.noiseBurst({ dur: 0.08, vol: 0.08, freq: 2400 });
+        break;
     }
   }
 

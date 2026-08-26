@@ -11,6 +11,7 @@ export interface MockCtx extends GameCtx {
   deaths: number;
   victories: number;
   checkpoints: number;
+  bossDefeats: number;
   audio: {
     play: (name: string, opts?: SfxOptions) => void;
     muted: boolean;
@@ -43,6 +44,7 @@ export function makeCtx(): MockCtx {
     deaths: 0,
     victories: 0,
     checkpoints: 0,
+    bossDefeats: 0,
     burst: (x, y, n, colors, type, speed) => {
       ctx.bursts.push({ x, y, n, colors, type, speed });
     },
@@ -61,6 +63,9 @@ export function makeCtx(): MockCtx {
     },
     onPlayerVictory: () => {
       ctx.victories += 1;
+    },
+    onBossDefeated: () => {
+      ctx.bossDefeats += 1;
     },
     setCheckpoint: () => {
       ctx.checkpoints += 1;

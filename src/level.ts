@@ -13,7 +13,9 @@ import { SpringPad } from './spring';
 import { PressurePlate } from './plate';
 import { Door } from './door';
 import { Projectile } from './projectile';
+import type { ProjectileKind } from './projectile';
 import { Fossil } from './fossil';
+import { MagmaKing } from './boss';
 
 export class Level {
   width: number;
@@ -35,6 +37,8 @@ export class Level {
   doors: Door[];
   projectiles: Projectile[];
   fossils: Fossil[];
+  /** The Magma King (Molten Nest only). */
+  boss: MagmaKing | null;
   readonly game: GameCtx;
 
   constructor(d: LevelDef, game: GameCtx, enemySpeed = 1, levelIdx = 0) {
@@ -70,6 +74,9 @@ export class Level {
     this.startGroundY = d.startGroundY;
     this.totalCrystals = this.crystals.length;
     this.projectiles = [];
+    this.boss = d.boss
+      ? new MagmaKing(d.boss, this, enemySpeed, d.orbs ?? [])
+      : null;
   }
 
   solidAt(x: number, y: number): boolean {
@@ -90,8 +97,11 @@ export class Level {
   }
 
   /** A spitter fires a glob (SFX + muzzle burst handled by the enemy). */
-  spawnProjectile(x: number, y: number, vx: number, vy: number): void {
-    this.projectiles.push(new Projectile(x, y, vx, vy));
+  spawnProjectile(
+    x: number, y: number, vx: number, vy: number,
+    kind: ProjectileKind = 'goo',
+  ): void {
+    this.projectiles.push(new Projectile(x, y, vx, vy, kind));
   }
 
   popProjectile(x: number, y: number): void {
@@ -106,6 +116,7 @@ export class Level {
     for (const e of this.enemies) e.update(dt, player);
     for (const hz of this.hazards) hz.update(dt, player);
     for (const cp of this.checkpoints) cp.update(dt);
+    this.boss?.update(dt, t, player);
     for (const pr of this.projectiles) pr.update(dt, this, player);
     this.projectiles = this.projectiles.filter((pr) => !pr.dead);
   }
@@ -119,6 +130,7 @@ export class Level {
     for (const h of this.hearts) h.collected = false;
     for (const f of this.fossils) f.collected = false;
     for (const e of this.enemies) e.reset();
+    this.boss?.reset();
     // Restore each hazard's own interval (the original hard-coded 2.2,
     // clobbering hazards configured with a different one).
     for (const hz of this.hazards) {

@@ -40,6 +40,11 @@ export interface GameCtx {
   addStatus(msg: string, color?: string): void;
   onPlayerDeath(): void;
   onPlayerVictory(): void;
+  /**
+   * The Magma King collapsed: bonus score, fanfare, and the nest gate
+   * latches open. Fired exactly once per boss death.
+   */
+  onBossDefeated(): void;
   setCheckpoint(cp: Checkpoint): void;
   /**
    * A crystal was collected: score (including any combo bonus), sparkles

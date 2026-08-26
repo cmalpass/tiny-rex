@@ -72,6 +72,8 @@ const PAUSE_TIPS = [
   'A falling rock telegraphs its landing with a shadow.',
   'Calm mode (V) tames particles for a mellow run.',
   'Lava flicks you clear — jump up out of it.',
+  'Shatter all 3 orbs to stun the Magma King — then stomp!',
+  'The Magma King is only vulnerable after his charge slams.',
 ];
 
 /**
@@ -122,6 +124,8 @@ export class Game implements GameCtx {
   rainbow = false;
   /** Cosmetic skin id (see SKINS); Mint unlocks at 3 fossils. */
   skin: string = getSkinId();
+  /** True once the Magma King falls this run (Molten Nest victory flourish). */
+  bossSlain = false;
   /** Ghost race: replay the stored best run alongside the player. */
   ghostOn: boolean = getGhostEnabled();
   /** Fossil ids discovered so far (persistent meta-progress). */
@@ -323,6 +327,7 @@ export class Game implements GameCtx {
     this.heartsGot = 0;
     this.star80Shown = false;
     this.star100Shown = false;
+    this.bossSlain = false;
     this.deaths = 0;
     this.elapsed = 0;
     this.time = 0;
@@ -602,10 +607,10 @@ export class Game implements GameCtx {
         y,
         vx: Math.cos(a) * s,
         vy: Math.sin(a) * s - (type === 'dust' ? 30 : 60),
-        life: 0.35 + Math.random() * 0.4,
-        size: type === 'chunk' ? 5 : type === 'dust' ? 4 : 3,
+        life: type === 'ember' ? 0.6 + Math.random() * 0.5 : 0.35 + Math.random() * 0.4,
+        size: type === 'chunk' ? 5 : type === 'dust' ? 4 : type === 'ember' ? 2.6 : 3,
         color: colors[Math.floor(Math.random() * colors.length)],
-        grav: type === 'dust' ? 60 : type === 'chunk' ? 500 : 260,
+        grav: type === 'dust' ? 60 : type === 'chunk' ? 500 : type === 'ember' ? 340 : 260,
         type,
         rot: Math.random() * TAU,
         vrot: (Math.random() - 0.5) * 10,
@@ -631,8 +636,12 @@ export class Game implements GameCtx {
     this.uiButtons = []; // no menu buttons linger during the celebration
     this.audio.play('victory');
     this.addShake(4);
-    // Confetti from above the nest
-    for (let i = 0; i < (this.reducedMotion ? 30 : 90); i++) {
+    // Confetti from above the nest (molten palette when the boss fell)
+    const palette = this.bossSlain
+      ? ['#ffd257', '#ff6b35', '#ff9d3f', '#7ec8f2', '#fff']
+      : ['#ffd257', '#7ec8f2', '#ff8fa3', '#9ff0a8', '#fff'];
+    const confettiN = (this.reducedMotion ? 30 : 90) + (this.bossSlain ? 50 : 0);
+    for (let i = 0; i < confettiN; i++) {
       const x = this.level!.goal.x - 120 + Math.random() * 240;
       this.particles.push(new Particle({
         x,
@@ -641,7 +650,7 @@ export class Game implements GameCtx {
         vy: 60 + Math.random() * 120,
         life: 1.6 + Math.random() * 1.2,
         size: 5,
-        color: ['#ffd257', '#7ec8f2', '#ff8fa3', '#9ff0a8', '#fff'][i % 5],
+        color: palette[i % palette.length],
         grav: 120,
         type: 'rect',
         rot: Math.random() * TAU,
@@ -706,6 +715,26 @@ export class Game implements GameCtx {
       stars,
       isBestStars,
     };
+  }
+
+  onBossDefeated(): void {
+    if (this.bossSlain) return; // fired once per boss death
+    this.bossSlain = true;
+    const boss = this.level?.boss;
+    const bx = boss ? boss.x + boss.w / 2 : VW / 2;
+    const by = boss ? boss.y + boss.h / 2 : 240;
+    this.addScore(CFG.score.boss, bx, by);
+    this.addShake(10);
+    // Big molten eruption from the boss
+    for (let i = 0; i < (this.reducedMotion ? 24 : 60); i++) {
+      const s = 120 + Math.random() * 320;
+      this.burst(bx + (Math.random() - 0.5) * 100, by, 1, ['#ff6b35', '#ffd257', '#ff9d3f'], 'ember', s);
+    }
+    this.audio.play('boss');
+    this.audio.stopMusic();
+    this.addStatus('THE MAGMA KING FALLS! The nest is open.', '#ffd257');
+    // Latch the nest gate open (Molten Nest only has a door).
+    for (const d of this.level?.doors ?? []) d.latched = true;
   }
 
   update(dt: number): void {
@@ -831,6 +860,12 @@ export class Game implements GameCtx {
       else if (e.type === 'trike') Sprite.drawTrike(ctx, e);
       else if (e.type === 'spitter') Sprite.drawSpitter(ctx, e, this.time);
       else Sprite.drawPtero(ctx, e);
+    }
+
+    // Magma King (Molten Nest boss arena) — drawn after enemies, before the player
+    const boss = this.level!.boss;
+    if (boss) {
+      if (boss.x + boss.w > camX - 200 && boss.x < camX + VW + 200) boss.draw(ctx, this.time);
     }
 
     // Springs & pressure plates (under the player)
@@ -1149,6 +1184,49 @@ export class Game implements GameCtx {
     ctx.restore();
     // Progress toward the nest (top centre, between the panels)
     if (this.player && this.level) this.drawProgress(ctx);
+    // Magma King: health bar + orb indicators (top centre, under the track)
+    const boss = this.player ? this.level?.boss : null;
+    if (boss && !boss.dead) {
+      const bw = 240, bx = VW / 2 - bw / 2, by = 44;
+      ctx.fillStyle = 'rgba(30,16,10,0.62)';
+      this.roundRect(ctx, bx - 16, by - 16, bw + 32, 56, 12);
+      ctx.fill();
+      ctx.font = '900 11px ' + FONT_STACK;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = boss.state === 'stunned' || boss.state === 'stagger' ? '#8fd8ff' : '#ff9d3f';
+      ctx.fillText(
+        boss.state === 'stunned' || boss.state === 'stagger' ? 'MAGMA KING — STOMP!' : 'MAGMA KING',
+        VW / 2, by - 3,
+      );
+      // HP bar
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      this.roundRect(ctx, bx, by + 4, bw, 10, 5);
+      ctx.fill();
+      const hpFrac = boss.hp / boss.maxHp;
+      if (hpFrac > 0) {
+        const hg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+        hg.addColorStop(0, '#ff6b35');
+        hg.addColorStop(1, '#ffd257');
+        ctx.fillStyle = hg;
+        this.roundRect(ctx, bx, by + 4, Math.max(10, bw * hpFrac), 10, 5);
+        ctx.fill();
+      }
+      // Orb pips (shattered = hollow)
+      for (let i = 0; i < boss.orbs.length; i++) {
+        const o = boss.orbs[i];
+        const ox = VW / 2 + (i - (boss.orbs.length - 1) / 2) * 22;
+        ctx.beginPath();
+        ctx.arc(ox, by + 28, 5, 0, TAU);
+        if (o.alive) {
+          ctx.fillStyle = '#8fd8ff';
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+    }
     // Combo chip while a crystal chain is alive
     if (this.combo > 1) {
       const label = 'COMBO ×' + this.combo;
@@ -1366,16 +1444,18 @@ export class Game implements GameCtx {
       const k = this.reducedMotion
         ? clamp(t / 0.4, 0, 1)
         : easeOutBack(clamp(t / 0.7, 0, 1));
+      const bossWin = this.bossSlain;
+      const title = bossWin ? 'THE MAGMA KING FALLS!' : 'You made it home!';
       ctx.save();
       ctx.translate(VW / 2, VH * 0.3);
       ctx.scale(k, k);
       ctx.textAlign = 'center';
-      ctx.font = '800 50px ' + FONT_STACK;
+      ctx.font = (bossWin ? '800 38px ' : '800 50px ') + FONT_STACK;
       ctx.lineWidth = 8;
       ctx.strokeStyle = 'rgba(25,55,30,0.55)';
-      ctx.strokeText('You made it home!', 0, 0);
-      ctx.fillStyle = '#9ff0a8';
-      ctx.fillText('You made it home!', 0, 0);
+      ctx.strokeText(title, 0, 0);
+      ctx.fillStyle = bossWin ? '#ffd257' : '#9ff0a8';
+      ctx.fillText(title, 0, 0);
       ctx.restore();
       if (t > 0.55) {
         ctx.globalAlpha = clamp((t - 0.55) / 0.4, 0, 0.8);
@@ -1459,13 +1539,15 @@ export class Game implements GameCtx {
       ['Crystals', r.crystals + ' / ' + r.totalCrystals + (r.crystals === r.totalCrystals ? '  ✦ all!' : '')],
       ['Stomps', String(r.stomps)],
       ...(r.heartsGot > 0 ? [[`Hearts`, '× ' + r.heartsGot] as [string, string]] : []),
+      ...(this.bossSlain ? [['Magma King', 'defeated!  +' + CFG.score.boss] as [string, string]] : []),
       ['Time', fmtTime(r.time) + (r.isBestTime ? '  (best!)' : '   best ' + (this.best.time === null ? '—' : fmtTime(this.best.time)))],
       ['Health bonus', '+' + r.heartBonus],
       ['Time bonus', '+' + r.timeBonus],
     ];
     lines.forEach((ln, i) => {
       const rowIn = clamp((t - (VICTORY_PANEL_T + 0.15 + i * 0.08)) / 0.25, 0, 1);
-      const y = py + 180 + i * 20;
+      // 16px rows: a 7th line (Magma King) still clears the TOTAL row
+      const y = py + 180 + i * 16;
       ctx.textAlign = 'left';
       ctx.globalAlpha = ease * rowIn;
       ctx.fillStyle = 'rgba(220,232,245,0.8)';
@@ -1641,7 +1723,7 @@ export class Game implements GameCtx {
     const cardGap = 14;
     const cardW = Math.floor((680 - cardGap * (cardCount - 1)) / cardCount);
     const cardX0 = VW / 2 - (cardW * cardCount + cardGap * (cardCount - 1)) / 2;
-    const cardAccents = ['#9ff0a8', '#ff9d7a', '#8fd8ff'];
+    const cardAccents = ['#9ff0a8', '#ff9d7a', '#8fd8ff', '#ff7a5c'];
     for (let i = 0; i < cardCount; i++) {
       const isDaily = i === LEVELS.length;
       const cx0 = cardX0 + i * (cardW + cardGap);

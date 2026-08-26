@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { CFG } from '../src/config';
 import { Game } from '../src/game';
 import { LEVEL_DATA, LEVELS } from '../src/level-data';
 import { Store, getGhostEnabled, getFoundFossils, getSkinId, type GameStats } from '../src/store';
@@ -329,7 +330,7 @@ describe('Fossil discoveries', () => {
     expect(game.totalFossils()).toBe(
       LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0),
     );
-    expect(game.totalFossils()).toBe(9);
+    expect(game.totalFossils()).toBe(12);
   });
 
   it('awards score on pickup and persists the first discovery', () => {
@@ -456,5 +457,49 @@ describe('Rex skins', () => {
     expect(game.state).toBe('playing');
     game.handleKey('skinNext');
     expect(game.skin).toBe('ember');
+  });
+});
+
+describe('Magma King (Molten Nest)', () => {
+  let game: Game;
+  const DT = 1 / 60;
+
+  beforeEach(() => {
+    localStorage.clear();
+    game = makeGame();
+  });
+
+  it('spawns the Magma King with three orbs when Molten Nest starts', () => {
+    game.selectLevel(3);
+    game.startGame();
+    const boss = game.level!.boss!;
+    expect(boss).not.toBeNull();
+    expect(boss.hp).toBe(boss.maxHp);
+    expect(boss.orbs).toHaveLength(3);
+  });
+
+  it('defeating the boss awards the boss score, latches the gate, and opens the victory', () => {
+    game.selectLevel(3);
+    game.startGame();
+    const boss = game.level!.boss!;
+    const door = game.level!.doors[0];
+    const p = game.player!;
+    // Drop onto the boss's head while it is staggered.
+    boss.state = 'stagger';
+    boss.hp = 1;
+    p.x = boss.x + 40;
+    p.y = boss.y - 42;
+    p.vy = 300;
+    for (let i = 0; i < 300 && !boss.dead; i++) game.update(DT);
+    expect(boss.dead).toBe(true);
+    expect(game.bossSlain).toBe(true);
+    expect(game.score).toBeGreaterThanOrEqual(CFG.score.boss);
+    expect(door.latched).toBe(true);
+    // Run to the nest for the victory ceremony.
+    p.x = game.level!.goal.x;
+    p.y = game.level!.goal.y - p.h;
+    p.vy = 0;
+    for (let i = 0; i < 30 && game.state !== 'victory'; i++) game.update(DT);
+    expect(game.state).toBe('victory');
   });
 });
