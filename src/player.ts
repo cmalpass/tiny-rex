@@ -8,12 +8,28 @@ import type { GameCtx } from './ctx';
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'hurt' | 'dead' | 'victory';
 export type DamageKind = 'spikes' | 'lava' | 'enemy' | 'rock' | 'pit';
 
-/** Haptic pulse where supported (mobile); silent no-op elsewhere. */
+/** Haptic pulse where supported (mobile vibration + gamepad rumble); silent no-op elsewhere. */
 function vibrate(pattern: number | number[]): void {
   try {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(pattern);
   } catch {
     /* no haptics */
+  }
+  // Gamepads with a vibration actuator get a matching dual rumble
+  try {
+    if (typeof navigator !== 'undefined' && 'getGamepads' in navigator) {
+      const pad = Array.from(navigator.getGamepads()).find((p) => p && p.vibrationActuator);
+      if (pad) {
+        const duration = Array.isArray(pattern) ? pattern.reduce((a, b) => a + b, 0) : pattern;
+        pad.vibrationActuator.playEffect('dual-rumble', {
+          duration,
+          strongMagnitude: 0.7,
+          weakMagnitude: 0.4,
+        });
+      }
+    }
+  } catch {
+    /* no actuator */
   }
 }
 
@@ -264,11 +280,16 @@ export class Player {
       if (c.collected) continue;
       if (overlap(this.rect, c.rect)) {
         c.collected = true;
-        const val = c.bonus ? CFG.score.bonusCrystal : CFG.score.crystal;
-        this.game.addScore(val, c.x, c.y - 14);
-        this.game.burst(c.x, c.y, c.bonus ? 18 : 10, c.bonus ? ['#ffe28a', '#fff', '#ffb84d'] : ['#ffe9b0', '#fff'], 'dot', 150);
-        this.game.addShake(c.bonus ? 2 : 0);
-        this.game.audio.play(c.bonus ? 'bonus' : 'collect');
+        this.game.collectCrystal(c.x, c.y, c.bonus);
+      }
+    }
+
+    // --- Hearts (heal, or pay out at full health) ---
+    for (const h of level.hearts) {
+      if (h.collected) continue;
+      if (overlap(this.rect, h.rect)) {
+        h.collected = true;
+        this.game.collectHeart(h.x, h.y);
       }
     }
 

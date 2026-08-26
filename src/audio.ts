@@ -1,5 +1,6 @@
 import { Store } from './store';
 import type { LevelTheme } from './level-data';
+import type { SfxOptions } from './ctx';
 
 interface ToneOpts {
   freq?: number;
@@ -210,7 +211,7 @@ export class AudioManager {
     }
   }
 
-  play(name: string): void {
+  play(name: string, opts?: SfxOptions): void {
     if (!this.ctx || this.muted) return;
     switch (name) {
       case 'jump':
@@ -219,15 +220,37 @@ export class AudioManager {
       case 'land':
         this.noiseBurst({ dur: 0.08, vol: 0.1, freq: 500 });
         break;
-      case 'collect':
-        this.tone({ freq: 920, dur: 0.08, type: 'sine', vol: 0.2 });
-        this.tone({ freq: 1380, dur: 0.12, type: 'sine', vol: 0.2, delay: 0.06 });
+      case 'collect': {
+        // Combo pickups climb in pitch so a streak feels like it's accelerating.
+        const mul = 1 + (Math.max(1, opts?.comboStep ?? 1) - 1) * 0.08;
+        this.tone({ freq: 920 * mul, dur: 0.08, type: 'sine', vol: 0.2 });
+        this.tone({ freq: 1380 * mul, dur: 0.12, type: 'sine', vol: 0.2, delay: 0.06 });
+        break;
+      }
+      case 'heart':
+        if (opts?.healed) {
+          // Warm two-note "mended" chime
+          this.tone({ freq: 620, to: 880, dur: 0.12, type: 'sine', vol: 0.2 });
+          this.tone({ freq: 880, to: 1320, dur: 0.16, type: 'sine', vol: 0.18, delay: 0.09 });
+        } else {
+          // Full health: bright coin-like chime
+          this.tone({ freq: 1046, dur: 0.09, type: 'triangle', vol: 0.18 });
+          this.tone({ freq: 1568, dur: 0.12, type: 'triangle', vol: 0.16, delay: 0.06 });
+        }
         break;
       case 'bonus':
         [920, 1150, 1380, 1840].forEach((f, i) =>
           this.tone({ freq: f, dur: 0.12, type: 'sine', vol: 0.2, delay: i * 0.07 }),
         );
         break;
+      case 'star': {
+        // Sparkly chime for a victory star pop; each star climbs a little.
+        const lift = 1 + (opts?.starIndex ?? 0) * 0.15;
+        [1046, 1318, 1568].forEach((f, i) =>
+          this.tone({ freq: f * lift, dur: 0.11, type: 'sine', vol: 0.22, delay: i * 0.055 }),
+        );
+        break;
+      }
       case 'stomp':
         this.noiseBurst({ dur: 0.14, vol: 0.24, freq: 900 });
         this.tone({ freq: 220, to: 90, dur: 0.14, type: 'triangle', vol: 0.24 });

@@ -1,9 +1,19 @@
 import type { Checkpoint } from './checkpoint';
 import type { ParticleType } from './particles';
 
+/** Per-play SFX options (most SFX take none). */
+export interface SfxOptions {
+  /** Combo step (2+) for crystal pickup — raises the pitch so streaks feel accelerating. */
+  comboStep?: number;
+  /** True when a heart pickup restored health; false when it converted to points at full health. */
+  healed?: boolean;
+  /** Which victory star is popping (0–2) — raises the chime a touch each time. */
+  starIndex?: number;
+}
+
 /** Minimal SFX surface that entities need from the audio manager. */
 export interface Sfx {
-  play(name: string): void;
+  play(name: string, opts?: SfxOptions): void;
   readonly muted: boolean;
 }
 
@@ -27,4 +37,14 @@ export interface GameCtx {
   onPlayerDeath(): void;
   onPlayerVictory(): void;
   setCheckpoint(cp: Checkpoint): void;
+  /**
+   * A crystal was collected: score (including any combo bonus), sparkles
+   * and SFX in one call so the combo bookkeeping stays in one place.
+   */
+  collectCrystal(x: number, y: number, bonus: boolean): void;
+  /**
+   * A heart pickup was collected: restores one heart, or pays points when
+   * the player is already at full health.
+   */
+  collectHeart(x: number, y: number): void;
 }

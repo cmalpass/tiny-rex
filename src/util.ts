@@ -4,6 +4,14 @@ export const clamp = (v: number, a: number, b: number): number => (v < a ? a : v
 
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+/** Overshooting ease-out for pop-in animations. */
+export const easeOutBack = (t: number): number => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  const x = clamp(t, 0, 1);
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+
 export interface Rect {
   x: number;
   y: number;

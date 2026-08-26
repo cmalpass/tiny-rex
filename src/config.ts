@@ -32,9 +32,13 @@ export const CFG = {
     stomp: 200,
     checkpoint: 250,
     heartBonus: 400,
+    /** Points a healing heart is worth when collected at full health. */
+    heartFull: 200,
     timeBonusBase: 2400,
     timeBonusPerSec: 10,
   },
+  /** Crystal combo: pickups inside `window` seconds chain a +`bonus` per step. */
+  combo: { window: 2.0, bonus: 25, maxSteps: 12 },
   killY: 680, // falling below this = pit death
 } as const;
 

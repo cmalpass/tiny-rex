@@ -64,6 +64,8 @@ export interface LevelDef {
   hazards: HazardDef[];
   checkpoints: Point[];
   enemies: EnemyDef[];
+  /** Heart pickups (restore one heart, or pay points at full health). */
+  hearts: Point[];
   goal: Point;
   decor: DecorDef[];
 }
@@ -187,6 +189,10 @@ const LEVEL_1: LevelDef = {
     { x: 3420, y: 460 },
     { x: 4560, y: 460 },
   ],
+  hearts: [
+    { x: 2660, y: 330 }, // stone ledge before the spikes
+    { x: 5080, y: 428 }, // just past the spike gauntlet
+  ],
   goal: { x: 7150, y: 460 },
   decor: [
     { type: 'sign', x: 120 },
@@ -304,6 +310,10 @@ const LEVEL_2: LevelDef = {
     { x: 2340, y: 460 },
     { x: 4380, y: 460 },
     { x: 6420, y: 460 },
+  ],
+  hearts: [
+    { x: 4300, y: 428 }, // safe ground after the lava moat
+    { x: 6340, y: 332 }, // stone ledge above the rock gauntlet
   ],
   goal: { x: 7350, y: 460 },
   decor: [

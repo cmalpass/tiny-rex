@@ -1,4 +1,4 @@
-import type { GameCtx } from '../src/ctx';
+import type { GameCtx, SfxOptions } from '../src/ctx';
 import type { ParticleType } from '../src/particles';
 
 export interface MockCtx extends GameCtx {
@@ -11,7 +11,7 @@ export interface MockCtx extends GameCtx {
   victories: number;
   checkpoints: number;
   audio: {
-    play: (name: string) => void;
+    play: (name: string, opts?: SfxOptions) => void;
     muted: boolean;
     played: string[];
   };
@@ -62,6 +62,16 @@ export function makeCtx(): MockCtx {
     },
     setCheckpoint: () => {
       ctx.checkpoints += 1;
+    },
+    collectCrystal: (x, y, bonus) => {
+      // Mirrors Game.collectCrystal without the combo bookkeeping
+      ctx.addScore(bonus ? 500 : 100, x, y);
+      ctx.burst(x, y, bonus ? 18 : 10, ['#ffe9b0', '#fff'], 'dot', 150);
+      ctx.audio.play(bonus ? 'bonus' : 'collect');
+    },
+    collectHeart: (x, y) => {
+      ctx.burst(x, y, 12, ['#ff8fa3', '#ffd9e2', '#fff'], 'dot', 140);
+      ctx.audio.play('heart');
     },
   };
   return ctx;

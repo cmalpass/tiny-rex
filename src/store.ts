@@ -4,12 +4,23 @@ export interface GameStats {
   deaths: number;
   crystals: number;
   victories: number;
+  /** Hearts restored from pickups, all-time. */
+  hearts: number;
   /** Epoch ms of the first play; null before the first run. */
   firstPlayed: number | null;
 }
 
 export function getStats(): GameStats {
-  return Store.get('tinyrex_stats', { runs: 0, deaths: 0, crystals: 0, victories: 0, firstPlayed: null });
+  // Normalize so stats saved before a field existed still read safely.
+  const s = Store.get<Partial<GameStats>>('tinyrex_stats', {});
+  return {
+    runs: s.runs ?? 0,
+    deaths: s.deaths ?? 0,
+    crystals: s.crystals ?? 0,
+    victories: s.victories ?? 0,
+    hearts: s.hearts ?? 0,
+    firstPlayed: s.firstPlayed ?? null,
+  };
 }
 
 /** Best score/time for one level (falls back to the legacy global key for level 0). */

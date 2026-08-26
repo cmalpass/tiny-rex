@@ -236,4 +236,40 @@ describe('Run end: stars & per-level records', () => {
     expect(game.stats.deaths).toBe(1);
     expect(Store.get<GameStats | null>('tinyrex_stats', null)!.deaths).toBe(1);
   });
+
+  it('unlocks a new max heart every three hearts collected, capped at five', () => {
+    game.handleKey('primary');
+    const p = game.player!;
+    expect(p.maxHearts).toBe(3); // normal difficulty
+    game.collectHeart(0, 0);
+    game.collectHeart(0, 0);
+    expect(p.maxHearts).toBe(3); // first two only pay points / heal
+    game.collectHeart(0, 0); // third → unlock
+    expect(p.maxHearts).toBe(4);
+    expect(p.hearts).toBe(4); // the new heart is granted immediately
+    for (let i = 0; i < 3; i++) game.collectHeart(0, 0); // sixth → unlock
+    expect(p.maxHearts).toBe(5);
+    for (let i = 0; i < 3; i++) game.collectHeart(0, 0); // ninth → capped
+    expect(p.maxHearts).toBe(5);
+    expect(game.heartsGot).toBe(9);
+  });
+
+  it('plays a chime for each star as the victory panel reveals', () => {
+    game.handleKey('primary');
+    game.player!.hearts = game.player!.maxHearts; // heart star
+    game.crystalsGot = game.level!.totalCrystals; // crystal star
+    game.onPlayerVictory();
+    expect(game.results!.stars).toBe(3);
+    expect(game.starChime).toBe(0);
+    // Star chimes fire at 1.8 s, 2.15 s and 2.5 s on the victory clock
+    game.victoryT = 2.0;
+    game.update(0.016);
+    expect(game.starChime).toBe(1);
+    game.victoryT = 2.4;
+    game.update(0.016);
+    expect(game.starChime).toBe(2);
+    game.victoryT = 2.7;
+    game.update(0.016);
+    expect(game.starChime).toBe(3);
+  });
 });

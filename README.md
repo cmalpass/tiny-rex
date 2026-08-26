@@ -93,17 +93,33 @@ time and input buffering, so well-timed jumps land forgivingly.
 - **Amber crystals** — 39 in Crystal Valley and 30 in Volcanic Depths (one 500-pt
   bonus crystal each on a risk/reward route), animated pickups with sparkles and
   floating score text.
+- **Crystal combos** — chain pickups within 2 s to grow a combo: each step adds
+  +25 pts, the pickup chime climbs in pitch, and a "COMBO ×n" tag pops above Rex
+  (up to ×12).
+- **Healing hearts** — floating hearts restore one heart (or pay 200 pts at full
+  health). Every third heart collected in a run unlocks a new max heart, up to a cap
+  of 5, so a careful run gets tougher *and* safer at once.
 - **Three difficulties** — Easy (5 hearts, slower enemies), Normal (3 hearts),
   Hard (2 hearts, faster enemies); the choice persists across sessions.
 - **Star ratings** — each run earns 1–3 stars: finish the level, keep ≥2 hearts,
   collect ≥80% of its crystals. Best stars per level are saved and shown on the menu
-  cards and the victory screen ("NEW BEST STARS!" when you improve).
+  cards and the victory screen ("NEW BEST STARS!" when you improve). Toads are
+  stars are called out mid-run: a toast fires the moment the 80% crystal star is
+  secured, and another for a perfect run (every crystal).
 - **Lifetime stats** — plays, deaths, crystals collected, and first-play date,
   shown on the main menu and stored in `localStorage`.
 - **Score & records** — crystals, stomps, checkpoints, remaining hearts, and a
   completion-time bonus; best score and fastest time persist per level.
 - **Full state flow** — animated menu → play → pause → checkpoint/damage/death →
-  respawn → game over → try again → victory results → play again/menu.
+  respawn → game over → try again → victory results → play again/menu. The victory
+  itself is a mini ceremony: confetti over the nest, a bouncing "You made it home!"
+  title, then the results panel slides up with staggered stats while the star rating
+  pops in one star at a time (each with its own chime).
+- **Atmosphere** — the valley is alive: petals drift and birds cross the sky by day,
+  embers spiral up from the crater at night. Calm mode quiets all of it.
+- **Rotating pause tips** — the pause screen cycles through gameplay tips (combos,
+  bounce stomps, rock telegraphs, calm mode…) so there is always something new to
+  read while thinking.
 - **Procedural audio** — Web Audio synth SFX for jump, collect, bonus, stomp, hurt,
   death, checkpoint, crumble, rocks, victory, and UI, plus a subtle ambient wind
   layer with occasional bird chirps. Each level also has its own **chiptune music
@@ -112,8 +128,9 @@ time and input buffering, so well-timed jumps land forgivingly.
   (`M` / 🔊).
 - **Gamepad support** — auto-detected and polled each frame: D-pad or left stick to
   move (and navigate the menu), **A**/**X** to jump, **B**/**Start** to confirm.
-- **Mobile haptics** — where the device supports `navigator.vibrate`, a short pulse
-  on stomps and a double pattern on taking damage.
+- **Haptics & rumble** — where supported (`navigator.vibrate` or a gamepad
+  vibration actuator), a short pulse on stomps and a double pattern on taking
+  damage; gamepads get a matching dual-rumble.
 - **Accessibility & polish** — reduced-motion mode (no screen shake, fewer
   particles), high-contrast HUD text, ≥44 px touch targets, concise status messages,
   auto-pause when the tab is hidden, and an `F2` debug overlay (FPS, position,
@@ -136,6 +153,7 @@ src/
   particles.ts   Particle / FloatingText — dust, sparkles, chunks, score popups.
   platform.ts    Ground / wood / stone / mover / crumble solids.
   crystal.ts     Bobbing, spinning amber crystals.
+  heart.ts       Floating, pulsing heart pickups.
   enemy.ts       Beetle / trike / ptero AI (patrol, hop, wave).
   hazard.ts      Lava, spikes, telegraphed falling rocks.
   checkpoint.ts  Checkpoint flag activation.

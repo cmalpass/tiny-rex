@@ -1,6 +1,6 @@
 import { CFG, VW, VH, TAU, FONT_STACK, DIFFICULTIES, STARS } from './config';
 import type { Difficulty } from './config';
-import { clamp, fmtTime } from './util';
+import { clamp, easeOutBack, fmtTime } from './util';
 import { Store, getStats, getBest, getBestStars } from './store';
 import type { GameStats } from './store';
 import { AudioManager } from './audio';
@@ -38,6 +38,8 @@ interface RunResults {
   crystals: number;
   totalCrystals: number;
   stomps: number;
+  /** Heart pickups collected this run. */
+  heartsGot: number;
   time: number;
   timeBonus: number;
   heartBonus: number;
@@ -47,6 +49,24 @@ interface RunResults {
   stars: number;
   isBestStars: boolean;
 }
+
+/** Victory reveal timeline (seconds of victoryT). */
+const VICTORY_PANEL_T = 1.2; // celebration title ends, panel slides up
+const VICTORY_STAR_T = 1.8; // first star pops
+const VICTORY_STAR_STEP = 0.35;
+const VICTORY_BUTTON_T = 2.9; // buttons fade in
+
+/** Rotating tips shown on the pause screen. */
+const PAUSE_TIPS = [
+  'Stomp an enemy, then hold jump to bounce higher.',
+  'Chain crystals within 2s to grow a combo bonus.',
+  'Hearts mend one wound — at full health they pay points.',
+  'Touch the flags: checkpoints save your progress.',
+  'The golden crystal is worth 5× the amber ones.',
+  'A falling rock telegraphs its landing with a shadow.',
+  'Calm mode (V) tames particles for a mellow run.',
+  'Lava flicks you clear — jump up out of it.',
+];
 
 /**
  * Orchestrates the whole game: state machine, main loop, HUD and screens.
@@ -68,6 +88,15 @@ export class Game implements GameCtx {
   crystalsGot = 0;
   /** Stomp count for the current run (GameCtx). */
   stomps = 0;
+  /** Crystal combo: consecutive pickups within the combo window. */
+  combo = 0;
+  /** Game time of the last crystal collected (-1 = none yet). */
+  lastCrystalT = -1;
+  /** Heart pickups collected this run. */
+  heartsGot = 0;
+  /** Star-secure toasts already shown this run. */
+  private star80Shown = false;
+  private star100Shown = false;
   deaths = 0;
   particles: Particle[] = [];
   texts: FloatingText[] = [];
@@ -78,6 +107,8 @@ export class Game implements GameCtx {
   fpsT = 0;
   fpsN = 0;
   victoryT = 0;
+  /** Victory stars already chimed (matches the staggered star pops). */
+  starChime = 0;
   results: RunResults | null = null;
   /** Selected level index (persisted). */
   levelIdx: number = clamp(Store.get('tinyrex_level', 0), 0, LEVELS.length - 1);
@@ -180,6 +211,11 @@ export class Game implements GameCtx {
     this.score = 0;
     this.crystalsGot = 0;
     this.stomps = 0;
+    this.combo = 0;
+    this.lastCrystalT = -1;
+    this.heartsGot = 0;
+    this.star80Shown = false;
+    this.star100Shown = false;
     this.deaths = 0;
     this.elapsed = 0;
     this.time = 0;
@@ -286,7 +322,7 @@ export class Game implements GameCtx {
         } else if (k === 'restart') this.startGame();
         break;
       case 'victory':
-        if (k === 'primary' && this.victoryT > 1.2) this.startGame();
+        if (k === 'primary' && this.victoryT > VICTORY_PANEL_T) this.startGame();
         else if (k === 'restart') this.startGame();
         break;
     }
@@ -319,6 +355,58 @@ export class Game implements GameCtx {
   addScore(v: number, x: number, y: number): void {
     this.score += v;
     this.texts.push(new FloatingText(x, y, '+' + v, '#ffe28a'));
+  }
+
+  /**
+   * Crystal pickup (GameCtx): base value plus a combo bonus for chaining
+   * pickups inside the window, with rising SFX pitch and a combo tag.
+   */
+  collectCrystal(x: number, y: number, bonus: boolean): void {
+    const base = bonus ? CFG.score.bonusCrystal : CFG.score.crystal;
+    if (this.lastCrystalT >= 0 && this.time - this.lastCrystalT <= CFG.combo.window) {
+      this.combo = Math.min(this.combo + 1, CFG.combo.maxSteps);
+    } else {
+      this.combo = 1;
+    }
+    this.lastCrystalT = this.time;
+    const total = base + (this.combo - 1) * CFG.combo.bonus;
+    this.addScore(total, x, y - 14);
+    this.burst(x, y, bonus ? 18 : 10, bonus ? ['#ffe28a', '#fff', '#ffb84d'] : ['#ffe9b0', '#fff'], 'dot', 150);
+    if (bonus) this.addShake(2);
+    this.audio.play(bonus ? 'bonus' : 'collect', this.combo > 1 ? { comboStep: this.combo } : undefined);
+    if (this.combo > 1) this.texts.push(new FloatingText(x, y - 34, 'COMBO ×' + this.combo, '#8fe3ff'));
+  }
+
+  /** Max hearts the player can unlock mid-run (every 3 hearts collected). */
+  static readonly MAX_HEARTS_CAP = 5;
+
+  /** Heart pickup (GameCtx): restores a heart, or pays points at full health. */
+  collectHeart(x: number, y: number): void {
+    const p = this.player!;
+    this.heartsGot += 1;
+    if (this.heartsGot % 3 === 0 && p.maxHearts < Game.MAX_HEARTS_CAP) {
+      p.maxHearts += 1;
+      p.hearts = p.maxHearts;
+      this.addStatus('Max hearts +1!', '#ff8fa3');
+      this.audio.play('heart', { healed: true });
+      this.burst(x, y, 16, ['#ff8fa3', '#ffd9e2', '#fff'], 'dot', 160);
+      return;
+    }
+    if (p.hearts < p.maxHearts) {
+      p.hearts += 1;
+      this.addStatus('Heart restored!', '#ff8fa3');
+      this.audio.play('heart', { healed: true });
+      this.burst(x, y, 12, ['#ff8fa3', '#ffd9e2', '#fff'], 'dot', 140);
+      const s = getStats();
+      s.hearts += 1;
+      Store.set('tinyrex_stats', s);
+      this.stats = s;
+    } else {
+      this.addScore(CFG.score.heartFull, x, y - 14);
+      this.addStatus('Full health +' + CFG.score.heartFull, '#ffe28a');
+      this.audio.play('heart');
+      this.burst(x, y, 10, ['#ff8fa3', '#ffd9e2'], 'dot', 130);
+    }
   }
 
   burst(x: number, y: number, n: number, colors: string[], type: ParticleType, speed: number): void {
@@ -356,6 +444,8 @@ export class Game implements GameCtx {
   onPlayerVictory(): void {
     this.state = 'victory';
     this.victoryT = 0;
+    this.starChime = 0;
+    this.uiButtons = []; // no menu buttons linger during the celebration
     this.audio.play('victory');
     this.addShake(4);
     // Confetti from above the nest
@@ -413,6 +503,7 @@ export class Game implements GameCtx {
       crystals: this.crystalsGot,
       totalCrystals: this.level!.totalCrystals,
       stomps: this.stomps,
+      heartsGot: this.heartsGot,
       time: this.elapsed,
       timeBonus,
       heartBonus,
@@ -435,6 +526,18 @@ export class Game implements GameCtx {
       this.camera.update(dt, this.player!, this.level!.width, this);
       // track crystal count
       this.crystalsGot = this.level!.crystals.filter((c) => c.collected).length;
+      // Combo expires once the window elapses without another pickup
+      if (this.combo > 0 && this.time - this.lastCrystalT > CFG.combo.window) this.combo = 0;
+      // Star-secure toasts (one-time, mid-run delight)
+      const need = Math.ceil(this.level!.totalCrystals * STARS.crystalPct);
+      if (!this.star80Shown && this.crystalsGot >= need) {
+        this.star80Shown = true;
+        this.addStatus('★ Star secured — 80% of the crystals!', '#ffd257');
+      }
+      if (!this.star100Shown && this.level!.totalCrystals > 0 && this.crystalsGot === this.level!.totalCrystals) {
+        this.star100Shown = true;
+        this.addStatus('✦ Perfect run — every crystal!', '#ffe28a');
+      }
       if (this.player!.state === 'victory' && this.state === 'playing') {
         this.state = 'victory';
       }
@@ -454,6 +557,16 @@ export class Game implements GameCtx {
       this.level!.update(dt, this.time, this.player!);
       this.player!.update(dt, this.time, this.input, this.level!);
       this.camera.update(dt, this.player!, this.level!.width, this);
+      // Staggered star chimes, synced with the star pops in drawVictory
+      if (this.results) {
+        while (
+          this.starChime < this.results.stars &&
+          this.victoryT >= VICTORY_STAR_T + this.starChime * VICTORY_STAR_STEP
+        ) {
+          this.audio.play('star', { starIndex: this.starChime });
+          this.starChime += 1;
+        }
+      }
     } else if (this.state === 'menu') {
       this.time += dt;
     }
@@ -466,6 +579,7 @@ export class Game implements GameCtx {
   /* ---------- rendering ---------- */
   render(): void {
     const ctx = this.ctx;
+    this.bg.calm = this.reducedMotion;
     ctx.save();
     // Crisp scaling: work in logical pixels
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -508,6 +622,9 @@ export class Game implements GameCtx {
     for (const cp of this.level!.checkpoints) cp.draw(ctx, this.time);
     for (const c of this.level!.crystals) {
       if (!c.collected) c.draw(ctx, this.time);
+    }
+    for (const h of this.level!.hearts) {
+      if (!h.collected) h.draw(ctx, this.time);
     }
     for (const e of this.level!.enemies) {
       if (e.dead) continue;
@@ -787,6 +904,20 @@ export class Game implements GameCtx {
     ctx.fillStyle = '#cfe8ff';
     ctx.font = '700 15px ' + FONT_STACK;
     ctx.fillText('Time ' + fmtTime(this.elapsed), VW - 24, 58);
+    // Progress toward the nest (top centre, between the panels)
+    if (this.player && this.level) this.drawProgress(ctx);
+    // Combo chip while a crystal chain is alive
+    if (this.combo > 1) {
+      const label = 'COMBO ×' + this.combo;
+      ctx.font = '800 14px ' + FONT_STACK;
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(20,30,45,0.6)';
+      this.roundRect(ctx, VW - 32 - tw, 80, tw + 18, 22, 11);
+      ctx.fill();
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#8fe3ff';
+      ctx.fillText(label, VW - 23, 96);
+    }
     // Status message
     if (this.status.t > 0 && this.state === 'playing') {
       ctx.globalAlpha = clamp(this.status.t / 0.5, 0, 1);
@@ -799,6 +930,54 @@ export class Game implements GameCtx {
       ctx.fillText(this.status.msg, VW / 2, 108);
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** Thin track from spawn to the nest, with checkpoint notches and a Rex marker. */
+  drawProgress(ctx: CanvasRenderingContext2D): void {
+    const bx = 340, bw = 400, by = 24, bh = 9;
+    const goalX = Math.max(1, this.level!.goal.x);
+    const prog = clamp(this.player!.x / goalX, 0, 1);
+    // frame
+    ctx.fillStyle = 'rgba(20,30,45,0.55)';
+    this.roundRect(ctx, bx - 6, by - 5, bw + 26, bh + 10, 10);
+    ctx.fill();
+    // track
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    this.roundRect(ctx, bx, by, bw, bh, 5);
+    ctx.fill();
+    // travelled fill
+    if (prog > 0.004) {
+      const g = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+      g.addColorStop(0, '#8fe3ff');
+      g.addColorStop(1, '#ffd257');
+      ctx.fillStyle = g;
+      this.roundRect(ctx, bx, by, Math.max(bh, bw * prog), bh, 5);
+      ctx.fill();
+    }
+    // checkpoint notches
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (const cp of this.level!.checkpoints) {
+      const nx = bx + (cp.x / goalX) * bw;
+      ctx.fillRect(nx - 1, by - 2, 2, bh + 4);
+    }
+    // the nest, waiting at the end
+    ctx.fillStyle = '#c98a4b';
+    ctx.beginPath();
+    ctx.ellipse(bx + bw + 11, by + bh / 2, 7, 5, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#8a5f3c';
+    ctx.beginPath();
+    ctx.ellipse(bx + bw + 11, by + bh / 2 + 1, 4, 2.4, 0, 0, TAU);
+    ctx.fill();
+    // Rex marker
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(bx + bw * prog, by + bh / 2, 5, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#5da854';
+    ctx.beginPath();
+    ctx.arc(bx + bw * prog, by + bh / 2, 3.4, 0, TAU);
+    ctx.fill();
   }
 
   drawPanel(ctx: CanvasRenderingContext2D, title: string, titleColor?: string): { px: number; py: number; pw: number; ph: number } {
@@ -893,6 +1072,12 @@ export class Game implements GameCtx {
 
   drawPause(ctx: CanvasRenderingContext2D): void {
     const { py, ph } = this.drawPanel(ctx, 'Paused', '#9ff0ff');
+    // A rotating tip keeps the pause screen from feeling static
+    const tip = PAUSE_TIPS[Math.floor(this.time / 9) % PAUSE_TIPS.length];
+    ctx.fillStyle = '#ffd257';
+    ctx.font = '700 14px ' + FONT_STACK;
+    ctx.textAlign = 'center';
+    ctx.fillText('Tip: ' + tip, VW / 2, py + 92);
     ctx.fillStyle = '#dce8f5';
     ctx.font = '700 16px ' + FONT_STACK;
     ctx.textAlign = 'center';
@@ -930,6 +1115,44 @@ export class Game implements GameCtx {
 
   drawVictory(ctx: CanvasRenderingContext2D): void {
     const r = this.results!;
+    const t = this.victoryT;
+
+    if (t < VICTORY_PANEL_T) {
+      // Phase 1 — celebration: confetti, nest hops, and a title that bounces in
+      // while the white flash from the goal fades.
+      const k = this.reducedMotion
+        ? clamp(t / 0.4, 0, 1)
+        : easeOutBack(clamp(t / 0.7, 0, 1));
+      ctx.save();
+      ctx.translate(VW / 2, VH * 0.3);
+      ctx.scale(k, k);
+      ctx.textAlign = 'center';
+      ctx.font = '800 50px ' + FONT_STACK;
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = 'rgba(25,55,30,0.55)';
+      ctx.strokeText('You made it home!', 0, 0);
+      ctx.fillStyle = '#9ff0a8';
+      ctx.fillText('You made it home!', 0, 0);
+      ctx.restore();
+      if (t > 0.55) {
+        ctx.globalAlpha = clamp((t - 0.55) / 0.4, 0, 0.8);
+        ctx.textAlign = 'center';
+        ctx.font = '600 16px ' + FONT_STACK;
+        ctx.fillStyle = '#dce8f5';
+        ctx.fillText('Recounting the run…', VW / 2, VH * 0.3 + 46);
+        ctx.globalAlpha = 1;
+      }
+      ctx.fillStyle = 'rgba(255,255,255,' + clamp(VICTORY_PANEL_T - t, 0, 1) * 0.5 + ')';
+      ctx.fillRect(0, 0, VW, VH);
+      return;
+    }
+
+    // Phase 2 — the results panel slides up over the still-celebrating scene,
+    // stats stagger in, and the star rating pops one star at a time.
+    const ease = 1 - Math.pow(1 - clamp((t - VICTORY_PANEL_T) / 0.4, 0, 1), 3);
+    ctx.save();
+    ctx.globalAlpha = ease;
+    ctx.translate(0, (1 - ease) * 40);
     const { py } = this.drawPanel(ctx, 'You Made It Home!', '#9ff0a8');
     ctx.textAlign = 'center';
     ctx.font = '700 15px ' + FONT_STACK;
@@ -939,7 +1162,13 @@ export class Game implements GameCtx {
     const stars = r.stars ?? 0;
     for (let i = 0; i < 3; i++) {
       const sx = VW / 2 + (i - 1) * 48;
-      this.starPath(ctx, sx, py + 120, 20);
+      const sy = py + 120;
+      const popT = t - (VICTORY_STAR_T + i * VICTORY_STAR_STEP);
+      const scale = i < stars && popT >= 0 ? easeOutBack(clamp(popT / 0.3, 0, 1)) : 1;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.scale(scale, scale);
+      this.starPath(ctx, 0, 0, 20);
       if (i < stars) {
         ctx.fillStyle = '#ffd257';
         ctx.fill();
@@ -951,48 +1180,80 @@ export class Game implements GameCtx {
       }
       ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.restore();
+      // Quick sparkle flash right after a star lands
+      if (i < stars && popT >= 0 && popT < 0.45 && !this.reducedMotion) {
+        const a = 1 - popT / 0.45;
+        ctx.strokeStyle = 'rgba(255,235,170,' + a.toFixed(2) + ')';
+        ctx.lineWidth = 2;
+        for (let s = 0; s < 4; s++) {
+          const ang = (s / 4) * TAU + TAU / 8;
+          const r1 = 26 + popT * 30;
+          const r2 = r1 + 8;
+          ctx.beginPath();
+          ctx.moveTo(sx + Math.cos(ang) * r1, sy + Math.sin(ang) * r1);
+          ctx.lineTo(sx + Math.cos(ang) * r2, sy + Math.sin(ang) * r2);
+          ctx.stroke();
+        }
+      }
     }
     if (r.isBestStars) {
-      ctx.font = '800 14px ' + FONT_STACK;
-      ctx.fillStyle = '#ffd257';
-      ctx.fillText('NEW BEST STARS!', VW / 2, py + 158);
+      const bestIn = clamp((t - (VICTORY_STAR_T + 3 * VICTORY_STAR_STEP)) / 0.3, 0, 1);
+      if (bestIn > 0) {
+        ctx.globalAlpha = ease * bestIn;
+        ctx.font = '800 14px ' + FONT_STACK;
+        ctx.fillStyle = '#ffd257';
+        ctx.fillText('NEW BEST STARS!', VW / 2, py + 158);
+        ctx.globalAlpha = ease;
+      }
     }
     ctx.font = '700 15px ' + FONT_STACK;
     const lines: [string, string][] = [
       ['Crystals', r.crystals + ' / ' + r.totalCrystals + (r.crystals === r.totalCrystals ? '  ✦ all!' : '')],
       ['Stomps', String(r.stomps)],
+      ...(r.heartsGot > 0 ? [[`Hearts`, '× ' + r.heartsGot] as [string, string]] : []),
       ['Time', fmtTime(r.time) + (r.isBestTime ? '  (best!)' : '   best ' + (this.best.time === null ? '—' : fmtTime(this.best.time)))],
       ['Health bonus', '+' + r.heartBonus],
       ['Time bonus', '+' + r.timeBonus],
     ];
     lines.forEach((ln, i) => {
+      const rowIn = clamp((t - (VICTORY_PANEL_T + 0.15 + i * 0.08)) / 0.25, 0, 1);
       const y = py + 180 + i * 20;
       ctx.textAlign = 'left';
+      ctx.globalAlpha = ease * rowIn;
       ctx.fillStyle = 'rgba(220,232,245,0.8)';
       ctx.fillText(ln[0], VW / 2 - 190, y);
       ctx.textAlign = 'right';
       ctx.fillStyle = '#ffe28a';
       ctx.fillText(ln[1], VW / 2 + 190, y);
     });
+    const totalIn = clamp((t - (VICTORY_PANEL_T + 0.15 + lines.length * 0.08)) / 0.3, 0, 1);
+    ctx.globalAlpha = ease * totalIn;
     ctx.textAlign = 'center';
     ctx.font = '800 24px ' + FONT_STACK;
     ctx.fillStyle = '#fff';
     ctx.fillText('TOTAL  ' + r.total + (r.isBestScore ? '  ★ New Best!' : '   best ' + this.best.score), VW / 2, py + 290);
+    ctx.globalAlpha = ease;
     // Play Again · Next Level · Menu
-    const by = py + 308;
-    const hasNext = this.levelIdx < LEVELS.length - 1;
-    this.uiButtons = [
-      { x: hasNext ? VW / 2 - 245 : VW / 2 - 220, y: by, w: hasNext ? 150 : 200, h: 52, label: 'Play Again', action: () => this.startGame() },
-      ...(hasNext
-        ? [{ x: VW / 2 - 75, y: by, w: 150, h: 52, label: 'Next Level', action: () => this.nextLevel() }]
-        : []),
-      { x: hasNext ? VW / 2 + 105 : VW / 2 + 20, y: by, w: hasNext ? 150 : 200, h: 52, label: 'Menu', action: () => this.toMenu() },
-    ];
-    for (const b of this.uiButtons) this.drawUIButton(ctx, b);
-    if (this.victoryT < 1.2) {
-      ctx.fillStyle = 'rgba(255,255,255,' + clamp(1.2 - this.victoryT, 0, 1) * 0.5 + ')';
-      ctx.fillRect(0, 0, VW, VH);
+    const btnIn = clamp((t - VICTORY_BUTTON_T) / 0.35, 0, 1);
+    if (btnIn > 0) {
+      const by = py + 308;
+      const hasNext = this.levelIdx < LEVELS.length - 1;
+      this.uiButtons = [
+        { x: hasNext ? VW / 2 - 245 : VW / 2 - 220, y: by, w: hasNext ? 150 : 200, h: 52, label: 'Play Again', action: () => this.startGame() },
+        ...(hasNext
+          ? [{ x: VW / 2 - 75, y: by, w: 150, h: 52, label: 'Next Level', action: () => this.nextLevel() }]
+          : []),
+        { x: hasNext ? VW / 2 + 105 : VW / 2 + 20, y: by, w: hasNext ? 150 : 200, h: 52, label: 'Menu', action: () => this.toMenu() },
+      ];
+      for (const b of this.uiButtons) {
+        ctx.save();
+        ctx.globalAlpha = ease * btnIn;
+        this.drawUIButton(ctx, b);
+        ctx.restore();
+      }
     }
+    ctx.restore();
   }
 
   renderMenu(ctx: CanvasRenderingContext2D): void {
@@ -1070,7 +1331,7 @@ export class Game implements GameCtx {
     ctx.font = '600 12px ' + FONT_STACK;
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText(
-      'PLAYS ' + this.stats.runs + '  ·  DEATHS ' + this.stats.deaths + '  ·  CRYSTALS ' + this.stats.crystals + '  ·  SINCE ' + since,
+      'PLAYS ' + this.stats.runs + '  ·  DEATHS ' + this.stats.deaths + '  ·  CRYSTALS ' + this.stats.crystals + '  ·  HEARTS ' + this.stats.hearts + '  ·  SINCE ' + since,
       VW / 2,
       205,
     );
