@@ -18,6 +18,8 @@ export interface RexView {
   dead: boolean;
   /** Death-tumble rotation (radians); 0 outside the dead state. */
   rot: number;
+  /** Konami code: cycle body colors through the rainbow. */
+  rainbow?: boolean;
 }
 
 /** Procedural character & enemy art. */
@@ -41,9 +43,13 @@ export const Sprite = {
     const legB = run ? Math.sin(phase + Math.PI) * 7 : 0;
     const tailWag = run ? Math.sin(phase * 1.5) * 4 : Math.sin(t * 2.4) * 2;
     const breathe = 1 + Math.sin(t * 3) * 0.02;
+    // Rainbow Rex (Konami): hue-cycle the body, keep the cream belly.
+    const hue = (t * 160) % 360;
+    const bodyC = p.rainbow ? `hsl(${hue.toFixed(0)}, 78%, 55%)` : '#59b25f';
+    const darkC = p.rainbow ? `hsl(${((hue + 160) % 360).toFixed(0)}, 60%, 44%)` : '#4c9d52';
 
     // Tail (behind body)
-    ctx.fillStyle = '#59b25f';
+    ctx.fillStyle = bodyC;
     ctx.beginPath();
     ctx.moveTo(-12, -12);
     ctx.quadraticCurveTo(-26, -14 + tailWag, -32, -26 + tailWag);
@@ -52,7 +58,7 @@ export const Sprite = {
     ctx.fill();
 
     // Legs
-    ctx.fillStyle = '#4c9d52';
+    ctx.fillStyle = darkC;
     const footY = 0;
     ctx.beginPath();
     ctx.ellipse(-6 + legA, footY - 4 + Math.max(0, legA * 0.2), 7, 6, 0, 0, TAU);
@@ -60,7 +66,7 @@ export const Sprite = {
     ctx.fill();
 
     // Body
-    ctx.fillStyle = '#59b25f';
+    ctx.fillStyle = bodyC;
     ctx.beginPath();
     ctx.ellipse(0, -20 + bob * 0.4, 15, 13 * breathe, 0, 0, TAU);
     ctx.fill();
@@ -71,7 +77,7 @@ export const Sprite = {
     ctx.fill();
 
     // Tiny arms
-    ctx.strokeStyle = '#4c9d52';
+    ctx.strokeStyle = darkC;
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     const armUp = victory ? -14 : 0;
@@ -84,7 +90,7 @@ export const Sprite = {
 
     // Head (large)
     const hy = -34 + bob;
-    ctx.fillStyle = '#59b25f';
+    ctx.fillStyle = bodyC;
     ctx.beginPath();
     ctx.ellipse(2, hy, 14.5, 13, 0, 0, TAU);
     ctx.fill();
@@ -150,7 +156,7 @@ export const Sprite = {
     ctx.ellipse(9, hy + 3.5, 3.4, 2.4, 0, 0, TAU);
     ctx.fill();
     // Head spikes (baby-sized)
-    ctx.fillStyle = '#4c9d52';
+    ctx.fillStyle = darkC;
     for (let i = 0; i < 3; i++) {
       const sx2 = -8 + i * 6;
       ctx.beginPath();
@@ -352,4 +358,90 @@ export const Sprite = {
     ctx.fill();
     ctx.restore();
   },
+
+  /** Spitter plant: a squat goo-blob with a nozzle that faces its target. */
+  drawSpitter(ctx: CanvasRenderingContext2D, e: Enemy, t: number): void {
+    ctx.save();
+    ctx.translate(e.x + e.w / 2, e.y + e.h);
+    ctx.scale(e.facing, 1);
+    const swell = 1 + e.charge * 0.22 + Math.sin(t * 2.4 + e.phase) * 0.04;
+    // rooty base
+    ctx.fillStyle = '#3f7d4e';
+    ctx.beginPath();
+    ctx.moveTo(-16, 0);
+    ctx.quadraticCurveTo(-10, -8, -6, -4);
+    ctx.quadraticCurveTo(0, -9, 6, -4);
+    ctx.quadraticCurveTo(10, -8, 16, 0);
+    ctx.closePath();
+    ctx.fill();
+    // body blob
+    ctx.fillStyle = '#63b06b';
+    ctx.beginPath();
+    ctx.ellipse(0, -16, 14 * swell, 12 * swell, 0, 0, TAU);
+    ctx.fill();
+    // goo sheen
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(-4, -21, 5, 3.4, -0.5, 0, TAU);
+    ctx.fill();
+    // drooping leaf
+    ctx.fillStyle = '#4c9d52';
+    ctx.beginPath();
+    ctx.moveTo(-8, -24);
+    ctx.quadraticCurveTo(-18, -28, -20, -18);
+    ctx.quadraticCurveTo(-13, -20, -8, -22);
+    ctx.closePath();
+    ctx.fill();
+    // nozzle (points at the player)
+    const recoil = e.charge * 4;
+    ctx.fillStyle = '#558f5e';
+    ctx.beginPath();
+    ctx.moveTo(8 - recoil, -20);
+    ctx.lineTo(20 - recoil, -16);
+    ctx.lineTo(20 - recoil, -10);
+    ctx.lineTo(8 - recoil, -8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#2f5d38';
+    ctx.beginPath();
+    ctx.ellipse(20 - recoil, -13, 2.6, 4, 0, 0, TAU);
+    ctx.fill();
+    // charging glow at the muzzle
+    if (e.charge > 0.05) {
+      ctx.fillStyle = 'rgba(201,240,160,' + (e.charge * 0.85).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.arc(23 - recoil, -13, 4 + e.charge * 4, 0, TAU);
+      ctx.fill();
+    }
+    // eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(2, -18, 4, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#22351f';
+    ctx.beginPath();
+    ctx.arc(3.4, -18, 2, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  },
 };
+
+/** A glob of spitter goo. */
+export function drawGlob(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  const wob = 1 + Math.sin(t * 18) * 0.12;
+  ctx.fillStyle = '#7ccf6d';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * wob, r / wob, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.3, -r * 0.35, r * 0.34, r * 0.22, -0.6, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#4c9d52';
+  ctx.beginPath();
+  ctx.arc(r * 0.25, r * 0.2, r * 0.18, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}

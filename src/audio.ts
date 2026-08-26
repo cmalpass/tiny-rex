@@ -288,6 +288,30 @@ export class AudioManager {
       case 'pause':
         this.tone({ freq: 520, to: 390, dur: 0.12, type: 'triangle', vol: 0.14 });
         break;
+      case 'spring':
+        this.tone({ freq: 180, to: 760, dur: 0.22, type: 'triangle', vol: 0.22 });
+        this.noiseBurst({ dur: 0.06, vol: 0.06, freq: 1200 });
+        break;
+      case 'plate':
+        if (opts?.pressed) {
+          this.tone({ freq: 220, to: 150, dur: 0.1, type: 'square', vol: 0.12 });
+        } else {
+          this.tone({ freq: 150, to: 240, dur: 0.1, type: 'square', vol: 0.1 });
+        }
+        break;
+      case 'door':
+        this.noiseBurst({ dur: 0.34, vol: 0.16, freq: 380 });
+        this.tone({ freq: 90, to: 180, dur: 0.4, type: 'sawtooth', vol: 0.1 });
+        break;
+      case 'spit':
+        this.tone({ freq: 340, to: 130, dur: 0.16, type: 'sawtooth', vol: 0.14 });
+        this.noiseBurst({ dur: 0.08, vol: 0.08, freq: 700 });
+        break;
+      case 'cheat':
+        [784, 988, 1175, 1568].forEach((f, i) =>
+          this.tone({ freq: f, dur: 0.09, type: 'sine', vol: 0.16, delay: i * 0.05 }),
+        );
+        break;
     }
   }
 
@@ -315,5 +339,10 @@ const MUSIC: Record<LevelTheme, { bpm: number; lead: number[]; bass: number[] }>
     bpm: 92,
     lead: [57, 60, 64, 67, 64, 60, 57, 55, 54, 57, 60, 64, 60, 57, 54, 52, 55, 57, 60, 62, 60, 57, 55, 52, 52, 54, 57, 60, 57, 54, 52, 0],
     bass: [33, 0, 45, 0, 33, 0, 45, 0, 30, 0, 42, 0, 30, 0, 42, 0, 31, 0, 43, 0, 31, 0, 43, 0, 40, 0, 52, 0, 40, 0, 52, 0],
+  },
+  frost: {
+    bpm: 100,
+    lead: [72, 76, 79, 84, 79, 76, 72, 71, 69, 72, 76, 79, 76, 72, 69, 67, 69, 72, 76, 74, 72, 69, 67, 64, 66, 69, 72, 76, 72, 69, 66, 0],
+    bass: [48, 0, 60, 0, 48, 0, 60, 0, 45, 0, 57, 0, 45, 0, 57, 0, 43, 0, 55, 0, 43, 0, 55, 0, 41, 0, 53, 0, 41, 0, 53, 0],
   },
 };

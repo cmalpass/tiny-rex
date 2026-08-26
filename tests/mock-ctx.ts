@@ -2,6 +2,7 @@ import type { GameCtx, SfxOptions } from '../src/ctx';
 import type { ParticleType } from '../src/particles';
 
 export interface MockCtx extends GameCtx {
+  godMode: boolean;
   bursts: { x: number; y: number; n: number; colors: string[]; type: ParticleType; speed: number }[];
   scores: number[];
   scoreTotal: number;
@@ -31,6 +32,7 @@ export function makeCtx(): MockCtx {
       played: [],
     },
     reducedMotion: false,
+    godMode: false,
     victoryT: 0,
     stomps: 0,
     bursts: [],

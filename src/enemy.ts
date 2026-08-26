@@ -2,8 +2,9 @@ import { CFG, TAU } from './config';
 import { clamp, lerp, overlap } from './util';
 import type { EnemyDef, EnemyType } from './level-data';
 import type { Level } from './level';
+import type { Player } from './player';
 
-/** Ground beetle (patrol), trike (bounces), and ptero (flies). */
+/** Ground beetle (patrol), trike (bounces), ptero (flies), and spitter plant (lobs globs). */
 export class Enemy {
   type: EnemyType;
   x: number;
@@ -28,6 +29,12 @@ export class Enemy {
   ax: number;
   ay: number;
   range: number;
+  /** Spitter: seconds until the next glob. */
+  fireCd: number = CFG.spitter.fireCd;
+  /** Spitter: 1 right after firing, eases to 0 (nozzle recoil/glow). */
+  charge = 0;
+  /** Spitter: faces the player. */
+  facing = 1;
   private readonly level: Level;
   /** Speed multiplier (difficulty). */
   private readonly speedMult: number;
@@ -52,6 +59,9 @@ export class Enemy {
     } else if (this.type === 'trike') {
       this.w = 42;
       this.h = 36;
+    } else if (this.type === 'spitter') {
+      this.w = 40;
+      this.h = 38;
     } else {
       this.w = 46;
       this.h = 30;
@@ -75,11 +85,13 @@ export class Enemy {
     }
   }
 
-  update(dt: number): void {
+  update(dt: number, player: Player): void {
     if (this.dead) return;
     this.squash = Math.max(0, this.squash - dt * 4);
+    this.charge = Math.max(0, this.charge - dt * 2.2);
     if (this.type === 'beetle') this.updateBeetle(dt);
     else if (this.type === 'trike') this.updateTrike(dt);
+    else if (this.type === 'spitter') this.updateSpitter(dt, player);
     else this.updatePtero(dt);
   }
 
@@ -138,6 +150,36 @@ export class Enemy {
     this.phase += dt * this.speedMult;
     this.x = this.ax + Math.sin(this.phase * 0.9 + this.phase0) * this.range;
     this.y = this.ay + Math.sin(this.phase * 1.7 + this.phase0 * 2) * 46;
+  }
+
+  private updateSpitter(dt: number, player: Player): void {
+    this.phase += dt * 3;
+    const pcx = player.x + 23; // player center
+    const ecx = this.x + this.w / 2;
+    const dx = pcx - ecx;
+    const dyFeet = player.y + 46 - (this.y + this.h);
+    const target = !player.dead && player.state !== 'victory' &&
+      Math.abs(dx) < CFG.spitter.range && Math.abs(dyFeet) < CFG.spitter.band;
+    this.facing = dx >= 0 ? 1 : -1;
+    if (target) {
+      this.fireCd -= dt;
+      if (this.fireCd <= 0) {
+        const speed = clamp(Math.abs(dx) * CFG.spitter.projSpeed, 240, 460);
+        this.level.spawnProjectile(
+          ecx + this.facing * 20,
+          this.y + 12,
+          this.facing * speed,
+          -330,
+        );
+        this.level.game.audio.play('spit');
+        this.level.game.burst(ecx + this.facing * 24, this.y + 12, 5, ['#8fe07a', '#c9f0a0'], 'dot', 90);
+        this.charge = 1;
+        this.fireCd = CFG.spitter.fireCd + Math.random() * 0.5;
+      }
+    } else {
+      // Out of range: hold fire, slowly re-arm.
+      this.fireCd = Math.max(this.fireCd - dt * 0.5, 0.35);
+    }
   }
 
   stomp(): void {

@@ -6,7 +6,7 @@ import type { Platform } from './platform';
 import type { GameCtx } from './ctx';
 
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'hurt' | 'dead' | 'victory';
-export type DamageKind = 'spikes' | 'lava' | 'enemy' | 'rock' | 'pit';
+export type DamageKind = 'spikes' | 'lava' | 'enemy' | 'rock' | 'pit' | 'spit';
 
 /** Haptic pulse where supported (mobile vibration + gamepad rumble); silent no-op elsewhere. */
 function vibrate(pattern: number | number[]): void {
@@ -60,6 +60,8 @@ export class Player {
   hurtT = 0;
   walkDustT = 0;
   jumpCutPending = false;
+  /** Konami code: rainbow skin. */
+  rainbow = false;
   private readonly game: GameCtx;
 
   constructor(x: number, y: number, game: GameCtx) {
@@ -246,6 +248,21 @@ export class Player {
       }
     }
 
+    // --- Spring pads: launch when falling (or walking) onto one ---
+    for (const s of level.springs) {
+      if (this.vy >= 0 && overlap(this.rect, s.rect)) {
+        this.vy = -CFG.spring.vel;
+        this.grounded = false;
+        this.standingOn = null;
+        this.squashX = 0.78;
+        this.squashY = 1.32;
+        this.jumpCutPending = false; // a spring launch isn't cuttable
+        s.bounce();
+        this.game.burst(this.x + this.w / 2, s.y - 8, 8, ['#ffb3c0', '#fff'], 'dot', 140);
+        this.game.audio.play('spring');
+      }
+    }
+
     // --- Walk dust ---
     if (this.grounded && Math.abs(this.vx) > 140) {
       this.walkDustT -= dt;
@@ -308,6 +325,7 @@ export class Player {
         this.game.burst(e.x + e.w / 2, e.y + e.h / 2, 14, this.enemyColors(e.type), 'chunk', 200);
         this.game.addShake(3);
         this.game.audio.play('stomp');
+        if (e.type === 'spitter') level.popProjectile(e.x + e.w / 2, e.y + e.h / 2);
         vibrate(30);
       } else if (this.invulnT <= 0) {
         this.damage(e, 'enemy');
@@ -333,11 +351,20 @@ export class Player {
   enemyColors(type: string): string[] {
     if (type === 'beetle') return ['#7a3b2e', '#5c2c22', '#c96f4a'];
     if (type === 'trike') return ['#7d97ad', '#5d7690', '#c3d3e0'];
+    if (type === 'spitter') return ['#63b06b', '#4c9d52', '#c9f0a0'];
     return ['#e8a0b4', '#c97d97', '#ffd9e2'];
   }
 
   damage(source: { x: number; w: number }, kind: DamageKind): void {
     if (this.invulnT > 0 || this.dead || this.state === 'victory') return;
+    if (this.game.godMode) {
+      // Invulnerable: still show the hit, no heart lost.
+      this.hurtT = 0.25;
+      this.game.audio.play('hurt');
+      this.game.burst(this.x + this.w / 2, this.y + this.h / 2, 8, ['#8fe3ff', '#fff'], 'dot', 160);
+      this.game.addStatus('Invulnerable!', '#8fe3ff');
+      return;
+    }
     this.hearts -= 1;
     this.invulnT = CFG.player.invulnTime;
     this.hurtT = 0.5;
@@ -355,7 +382,15 @@ export class Player {
     if (kind === 'lava') dir = 0;
     this.vx = dir * CFG.player.knockX;
     this.vy = kind === 'lava' ? -CFG.player.lavaBounce : -CFG.player.knockY;
-    this.game.addStatus('Ouch!', '#ff9d7a');
+    const msgs: Record<DamageKind, string> = {
+      spikes: 'Ouch!',
+      lava: 'Sizzling!',
+      enemy: 'Bumped!',
+      rock: 'Bonked!',
+      pit: 'Whoa!',
+      spit: 'Yuck!',
+    };
+    this.game.addStatus(msgs[kind], '#ff9d7a');
   }
 
   die(kind: DamageKind): void {

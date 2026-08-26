@@ -1,7 +1,7 @@
 /** Declarative level content, ported verbatim from the original game.js ("Crystal Valley"). */
 
-export type PlatformType = 'ground' | 'wood' | 'stone' | 'crumble' | 'mover';
-export type EnemyType = 'beetle' | 'trike' | 'ptero';
+export type PlatformType = 'ground' | 'wood' | 'stone' | 'crumble' | 'mover' | 'door';
+export type EnemyType = 'beetle' | 'trike' | 'ptero' | 'spitter';
 export type HazardType = 'spikes' | 'lava' | 'rocks';
 export type DecorType = 'tree' | 'bush' | 'rock' | 'flower' | 'crystalrock' | 'sign' | 'tuft';
 
@@ -68,9 +68,15 @@ export interface LevelDef {
   hearts: Point[];
   goal: Point;
   decor: DecorDef[];
+  /** Spring pads: {x, groundTopY}. Launch the player upward. */
+  springs?: Point[];
+  /** Pressure plates: hold to keep the referenced door (index into `doors`) open. */
+  plates?: { x: number; y: number; door: number }[];
+  /** Sliding gates: {x, y, w, h}; y is the top, bottom meets the ground. */
+  doors?: { x: number; y: number; w: number; h: number }[];
 }
 
-export type LevelTheme = 'meadow' | 'volcanic';
+export type LevelTheme = 'meadow' | 'volcanic' | 'frost';
 
 export interface LevelInfo {
   id: number;
@@ -330,9 +336,137 @@ const LEVEL_2: LevelDef = {
   ],
 };
 
+// Level 3 — "Frostpeak Pass": a cold alpine pass. Springs launch Rex up to
+// crystal ledges, pressure plates hold the ancient gates open, and spitter
+// plants lob globs of sludge across the trail. Same ground line (y=460),
+// ~8000px wide, the longest and most vertical of the three runs.
+const LEVEL_3: LevelDef = {
+  width: 8000,
+  startX: 120,
+  startY: 414, // 460 - player.h
+  startGroundY: 460,
+  platforms: [
+    // ---- Section A: alpine opening (teach the mood) ----
+    { x: 0, y: 460, w: 1300, h: 120, type: 'ground' },
+    { x: 380, y: 372, w: 120, h: 24, type: 'stone' },
+    { x: 620, y: 300, w: 120, h: 24, type: 'stone' },
+    { x: 860, y: 372, w: 120, h: 24, type: 'stone' },
+    // ---- Section B: the spring gardens (teach springs) ----
+    { x: 1500, y: 460, w: 1000, h: 120, type: 'ground' },
+    { x: 1860, y: 300, w: 130, h: 24, type: 'stone' }, // spring 1 ledge
+    { x: 2380, y: 300, w: 130, h: 24, type: 'stone' }, // spring 2 ledge
+    // ---- Section C: gate of the pass (spring → plate → door) ----
+    { x: 2720, y: 460, w: 1180, h: 120, type: 'ground' },
+    { x: 3150, y: 320, w: 150, h: 24, type: 'stone' }, // plate ledge
+    // ---- Section D: spitter meadow ----
+    { x: 4120, y: 460, w: 1180, h: 120, type: 'ground' },
+    { x: 4500, y: 380, w: 100, h: 24, type: 'stone' }, // spitter perch
+    { x: 4900, y: 380, w: 100, h: 24, type: 'stone' }, // spitter perch
+    { x: 4000, y: 390, w: 90, h: 24, type: 'mover', axis: 'x', amp: 60, speed: 1.0 }, // over gap
+    // ---- Section E: rockfall ridge + bonus spring ledge ----
+    { x: 5520, y: 460, w: 1080, h: 120, type: 'ground' },
+    { x: 5400, y: 380, w: 90, h: 24, type: 'stone' }, // over gap
+    { x: 5900, y: 300, w: 130, h: 24, type: 'stone' }, // bonus spring ledge
+    // ---- Section F: second gate, final spitter, goal ----
+    { x: 6800, y: 460, w: 1200, h: 120, type: 'ground' },
+    { x: 7200, y: 320, w: 150, h: 24, type: 'stone' }, // plate ledge
+    { x: 7450, y: 380, w: 100, h: 24, type: 'stone' }, // spitter perch
+  ],
+  springs: [
+    { x: 1750, y: 460 },
+    { x: 2300, y: 460 },
+    { x: 3000, y: 460 },
+    { x: 5800, y: 460 },
+    { x: 7050, y: 460 },
+  ],
+  plates: [
+    { x: 3200, y: 320, door: 0 },
+    { x: 7250, y: 320, door: 1 },
+  ],
+  doors: [
+    { x: 3650, y: 310, w: 40, h: 150 },
+    { x: 7600, y: 310, w: 40, h: 150 },
+  ],
+  crystals: [
+    // Section A
+    { x: 190, y: 425 }, { x: 260, y: 425 },
+    { x: 440, y: 335 }, { x: 680, y: 263 }, { x: 920, y: 335 },
+    { x: 1330, y: 380 }, { x: 1400, y: 360 }, { x: 1470, y: 380 }, // gap arc
+    // Section B (spring gardens)
+    { x: 1600, y: 425 },
+    { x: 1774, y: 260 }, // spring 1 apex
+    { x: 1925, y: 263 }, // spring 1 ledge
+    { x: 2150, y: 425 },
+    { x: 2324, y: 260 }, // spring 2 apex
+    { x: 2445, y: 263 }, // spring 2 ledge
+    // Section C (gate)
+    { x: 2800, y: 425 }, { x: 2900, y: 425 },
+    { x: 3024, y: 260 }, // spring 3 apex
+    { x: 3225, y: 283 }, // plate ledge
+    { x: 3750, y: 425 }, { x: 3830, y: 425 },
+    { x: 4045, y: 353 }, // mover over gap
+    // Section D (spitter meadow)
+    { x: 4200, y: 425 }, { x: 4400, y: 425 },
+    { x: 4550, y: 343 }, { x: 4950, y: 343 }, // perch grabs
+    { x: 5150, y: 425 },
+    // Section E (rockfall ridge)
+    { x: 5445, y: 343 }, // gap stone
+    { x: 5650, y: 425 },
+    { x: 5824, y: 260 }, // bonus spring apex
+    { x: 5965, y: 263, bonus: true }, // bonus ledge
+    { x: 6250, y: 425 }, { x: 6450, y: 425 },
+    { x: 6650, y: 380 }, { x: 6700, y: 360 }, { x: 6750, y: 380 }, // gap arc
+    // Section F (second gate)
+    { x: 6900, y: 425 },
+    { x: 7074, y: 260 }, // spring apex
+    { x: 7275, y: 283 }, // plate ledge
+    { x: 7500, y: 343 }, // final perch
+    { x: 7750, y: 425 },
+  ],
+  enemies: [
+    { type: 'beetle', x: 1000, y: 432, minX: 900, maxX: 1250 },
+    { type: 'spitter', x: 4540, y: 342 },
+    { type: 'spitter', x: 4940, y: 342 },
+    { type: 'beetle', x: 5200, y: 432, minX: 5100, maxX: 5280 },
+    { type: 'beetle', x: 5600, y: 432, minX: 5560, maxX: 5680 },
+    { type: 'trike', x: 6250, y: 424, minX: 6100, maxX: 6520 },
+    { type: 'spitter', x: 7490, y: 342 },
+    { type: 'beetle', x: 7700, y: 432, minX: 7650, maxX: 7900 },
+  ],
+  hazards: [
+    { type: 'spikes', x: 3450, y: 460, w: 80 },
+    { type: 'rocks', x: 5700, y: 460, w: 220, interval: 2.6 },
+    { type: 'spikes', x: 6350, y: 460, w: 70 },
+  ],
+  checkpoints: [
+    { x: 2780, y: 460 },
+    { x: 4180, y: 460 },
+    { x: 6860, y: 460 },
+  ],
+  hearts: [
+    { x: 3720, y: 428 }, // just past the first gate
+    { x: 7720, y: 428 }, // past the final gate, near the goal
+  ],
+  goal: { x: 7850, y: 460 },
+  decor: [
+    { type: 'sign', x: 120 },
+    { type: 'crystalrock', x: 280, s: 1.0 }, { type: 'rock', x: 520 },
+    { type: 'tuft', x: 420 }, { type: 'crystalrock', x: 980, s: 0.9 }, { type: 'tuft', x: 1150 },
+    { type: 'tuft', x: 1550 }, { type: 'flower', x: 1700, color: '#c9a0ff' },
+    { type: 'tuft', x: 2100 }, { type: 'crystalrock', x: 2450, s: 1.05 },
+    { type: 'tuft', x: 2850 }, { type: 'rock', x: 3050 }, { type: 'tuft', x: 3400 },
+    { type: 'crystalrock', x: 3800, s: 1.15 }, { type: 'tuft', x: 4250 }, { type: 'rock', x: 4700 },
+    { type: 'tuft', x: 5050 }, { type: 'crystalrock', x: 5350, s: 0.9 }, { type: 'tuft', x: 5850 },
+    { type: 'rock', x: 6150 }, { type: 'tuft', x: 6300 }, { type: 'crystalrock', x: 6550, s: 1.0 },
+    { type: 'tuft', x: 6950 }, { type: 'flower', x: 7100, color: '#ff8fa3' },
+    { type: 'tuft', x: 7350 }, { type: 'crystalrock', x: 7900, s: 1.2 },
+  ],
+};
+
 export const LEVELS: LevelInfo[] = [
   { id: 0, name: 'Crystal Valley', subtitle: 'CRYSTAL VALLEY', theme: 'meadow', def: LEVEL_1 },
   { id: 1, name: 'Volcanic Depths', subtitle: 'VOLCANIC DEPTHS', theme: 'volcanic', def: LEVEL_2 },
+  { id: 2, name: 'Frostpeak Pass', subtitle: 'FROSTPEAK PASS', theme: 'frost', def: LEVEL_3 },
 ];
 
 /** Backward-compatible handle for the original level (Crystal Valley). */

@@ -9,6 +9,10 @@ import { Hazard } from './hazard';
 import { Checkpoint } from './checkpoint';
 import { Enemy } from './enemy';
 import { Goal } from './goal';
+import { SpringPad } from './spring';
+import { PressurePlate } from './plate';
+import { Door } from './door';
+import { Projectile } from './projectile';
 
 export class Level {
   width: number;
@@ -25,11 +29,25 @@ export class Level {
   totalCrystals: number;
   /** Enemy speed multiplier (difficulty). */
   readonly enemySpeed: number;
+  springs: SpringPad[];
+  plates: PressurePlate[];
+  doors: Door[];
+  projectiles: Projectile[];
+  readonly game: GameCtx;
 
   constructor(d: LevelDef, game: GameCtx, enemySpeed = 1) {
     this.width = d.width;
     this.enemySpeed = enemySpeed;
-    this.platforms = d.platforms.map((p) => new Platform(p));
+    this.game = game;
+    this.springs = (d.springs ?? []).map((s) => new SpringPad(s.x, s.y));
+    this.plates = (d.plates ?? []).map((p) => new PressurePlate(p.x, p.y, game));
+    this.doors = (d.doors ?? []).map((dr) => new Door(dr.x, dr.y, dr.w, dr.h, game));
+    for (let i = 0; i < (d.plates ?? []).length; i++) {
+      this.doors[(d.plates ?? [])[i].door].plate = this.plates[i];
+    }
+    // Doors join the platform list so player/enemy collision treats them
+    // as solid ground while closed.
+    this.platforms = [...d.platforms.map((p) => new Platform(p)), ...this.doors];
     this.crystals = d.crystals.map((c) => new Crystal(c.x, c.y, c.bonus ?? false));
     this.hearts = (d.hearts ?? []).map((h) => new HeartPickup(h.x, h.y));
     this.hazards = d.hazards.map((h) => new Hazard(h, this, game));
@@ -48,6 +66,7 @@ export class Level {
     this.start = { x: d.startX, y: d.startY };
     this.startGroundY = d.startGroundY;
     this.totalCrystals = this.crystals.length;
+    this.projectiles = [];
   }
 
   solidAt(x: number, y: number): boolean {
@@ -67,20 +86,32 @@ export class Level {
     return best;
   }
 
+  /** A spitter fires a glob (SFX + muzzle burst handled by the enemy). */
+  spawnProjectile(x: number, y: number, vx: number, vy: number): void {
+    this.projectiles.push(new Projectile(x, y, vx, vy));
+  }
+
+  popProjectile(x: number, y: number): void {
+    const pr = this.projectiles.find((p) => !p.dead && Math.hypot(p.x - x, p.y - y) < 30);
+    if (pr) pr.dead = true;
+  }
+
   update(dt: number, t: number, player: Player): void {
-    for (const p of this.platforms) p.update(t);
-    for (const c of this.crystals) if (!c.collected) c.update(t);
-    for (const e of this.enemies) e.update(dt);
+    for (const p of this.plates) p.update(dt, player);
+    for (const p of this.platforms) p.update(dt, t);
+    for (const s of this.springs) s.update(dt);
+    for (const e of this.enemies) e.update(dt, player);
     for (const hz of this.hazards) hz.update(dt, player);
     for (const cp of this.checkpoints) cp.update(dt);
+    for (const pr of this.projectiles) pr.update(dt, this, player);
+    this.projectiles = this.projectiles.filter((pr) => !pr.dead);
   }
 
   reset(): void {
-    for (const p of this.platforms) {
-      p.active = true;
-      p.prevX = undefined;
-      p.prevY = undefined;
-    }
+    for (const p of this.platforms) p.reset();
+    for (const s of this.springs) s.reset();
+    for (const p of this.plates) p.reset();
+    this.projectiles = [];
     for (const c of this.crystals) c.collected = false;
     for (const h of this.hearts) h.collected = false;
     for (const e of this.enemies) e.reset();
