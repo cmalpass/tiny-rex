@@ -35,6 +35,16 @@ export function getBestStars(idx: number): number {
   return Store.get('tinyrex_stars_' + idx, 0);
 }
 
+/** Best score/time for today's Daily Rex challenge. */
+export function getDailyBest(): { score: number; time: number | null } {
+  return Store.get('tinyrex_best_daily', { score: 0, time: null as number | null });
+}
+
+/** Best star rating for the current Daily Rex challenge (0–3). */
+export function getDailyStars(): number {
+  return Store.get('tinyrex_stars_daily', 0);
+}
+
 /** Safe localStorage wrapper (settings + best records). */
 export const Store = {
   get<T>(key: string, fallback: T): T {
