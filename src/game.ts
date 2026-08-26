@@ -1,7 +1,7 @@
 import { CFG, VW, VH, TAU, FONT_STACK, DIFFICULTIES, STARS } from './config';
 import type { Difficulty } from './config';
 import { clamp, easeOutBack, fmtTime } from './util';
-import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack, getFoundFossils, findFossil } from './store';
+import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack, getFoundFossils, findFossil, getSkinId, setSkinId } from './store';
 import type { GameStats } from './store';
 import { AudioManager } from './audio';
 import { Input } from './input';
@@ -17,7 +17,7 @@ import type { LevelInfo } from './level-data';
 import { generateDailyLevel, dailySeed, dailyLabel, rexCode } from './daily';
 import { GhostRecorder, GhostPlayer } from './ghost';
 import { drawDecor } from './decor';
-import { Sprite } from './sprite';
+import { Sprite, SKINS, skinUnlocked } from './sprite';
 import type { GameCtx } from './ctx';
 import type { Checkpoint } from './checkpoint';
 import type { Platform } from './platform';
@@ -120,6 +120,8 @@ export class Game implements GameCtx {
   godMode = false;
   /** Cheat: rainbow Rex skin (persists across runs). */
   rainbow = false;
+  /** Cosmetic skin id (see SKINS); Mint unlocks at 3 fossils. */
+  skin: string = getSkinId();
   /** Ghost race: replay the stored best run alongside the player. */
   ghostOn: boolean = getGhostEnabled();
   /** Fossil ids discovered so far (persistent meta-progress). */
@@ -251,6 +253,33 @@ export class Game implements GameCtx {
     this.audio.play('ui');
   }
 
+  /** Choose a cosmetic skin (Mint needs 3 fossils). */
+  selectSkin(id: string): void {
+    if (!skinUnlocked(id, this.fossilsFound)) {
+      this.audio.play('ui');
+      return;
+    }
+    if (id === this.skin) return;
+    this.skin = id;
+    setSkinId(id);
+    if (this.player) this.player.skin = id;
+    if (this.ghost) this.ghost.skin = id;
+    this.audio.play('ui');
+  }
+
+  /** Cycle skins with [ / ] on the menu; locked skins are skipped. */
+  cycleSkin(dir: 1 | -1): void {
+    let idx = SKINS.findIndex((s) => s.id === this.skin);
+    if (idx < 0) idx = 0;
+    for (let i = 1; i <= SKINS.length; i++) {
+      const cand = SKINS[(((idx + dir * i) % SKINS.length) + SKINS.length) % SKINS.length];
+      if (cand.id !== this.skin && skinUnlocked(cand.id, this.fossilsFound)) {
+        this.selectSkin(cand.id);
+        return;
+      }
+    }
+  }
+
   /** Advance to the next level and start a fresh run. */
   nextLevel(): void {
     this.levelIdx = (this.levelIdx + 1) % LEVELS.length;
@@ -278,6 +307,7 @@ export class Game implements GameCtx {
     this.player.maxHearts = this.maxHearts;
     this.player.hearts = this.maxHearts;
     this.player.rainbow = this.rainbow;
+    this.player.skin = this.skin;
     if (this.maxHeartsCheat) {
       this.maxHeartsCheat = false;
       this.player.maxHearts = Game.MAX_HEARTS_CAP;
@@ -306,7 +336,10 @@ export class Game implements GameCtx {
     this.ghost = null;
     if (this.ghostOn) {
       const track = getGhostTrack(this.daily ? -1 : this.levelIdx, this.daily ? dailySeed() : 0);
-      if (track) this.ghost = new GhostPlayer(track);
+      if (track) {
+        this.ghost = new GhostPlayer(track);
+        this.ghost.skin = this.skin;
+      }
     }
     this.camera.x = 0;
     this.camera.shake = 0;
@@ -385,6 +418,10 @@ export class Game implements GameCtx {
     }
     if (k === 'ghost') {
       this.toggleGhost();
+      return;
+    }
+    if ((k === 'skinPrev' || k === 'skinNext') && this.state === 'menu') {
+      this.cycleSkin(k === 'skinNext' ? 1 : -1);
       return;
     }
     if (k === 'debug') {
@@ -546,6 +583,10 @@ export class Game implements GameCtx {
       this.addShake(2);
       this.burst(x, y, 22, ['#f4ecd9', '#e8dcc0', '#cbb98f', '#fff'], 'dot', 170);
       this.texts.push(new FloatingText(x, y - 34, 'NEW FOSSIL!', '#f4ecd9'));
+      if (this.fossilsFound.length === 3) {
+        this.addStatus('Mint Rex unlocked! Pick it on the menu', '#63e0a8');
+        this.audio.play('star');
+      }
     } else {
       this.burst(x, y, 10, ['#f4ecd9', '#e8dcc0'], 'dot', 130);
     }
@@ -1498,6 +1539,7 @@ export class Game implements GameCtx {
       dead: false,
       rot: 0,
       rainbow: this.rainbow,
+      skin: this.skin,
     };
     Sprite.drawRex(ctx, fakeP, this.time);
     // Title block (gently floating, theme-aware)
@@ -1547,7 +1589,7 @@ export class Game implements GameCtx {
       205,
     );
     // Controls panel (left)
-    const cpx = 34, cpy = 232, cpw = 240, cph = 232;
+    const cpx = 34, cpy = 232, cpw = 240, cph = 238;
     this.drawInfoPanel(ctx, cpx, cpy, cpw, cph, 'CONTROLS');
     const rows: Array<[string, string]> = [
       ['Move', 'A / D · ← →'],
@@ -1558,6 +1600,7 @@ export class Game implements GameCtx {
       ['Difficulty', '↑ / ↓'],
       ['Mute · Calm · Ghost', 'M · V · G'],
       ['Gamepad', 'A jump · B go'],
+      ['Skin', '[ / ]'],
       ['Debug', 'F2'],
     ];
     ctx.font = '600 13px ' + FONT_STACK;
@@ -1571,7 +1614,7 @@ export class Game implements GameCtx {
       ctx.fillText(keys, cpx + cpw - 20, y);
     });
     // Quest panel (right), rows vertically centred against the controls list
-    const qx = VW - 274, qy = 232, qw = 240, qh = 232;
+    const qx = VW - 274, qy = 232, qw = 240, qh = 238;
     this.drawInfoPanel(ctx, qx, qy, qw, qh, 'YOUR QUEST');
     const quest = [
       'Reach the glowing nest',
@@ -1685,6 +1728,60 @@ export class Game implements GameCtx {
       ctx.font = '800 12px ' + FONT_STACK;
       this.drawTracked(ctx, p.label, p.x + 45, 413, 2, false);
     });
+    // Skin picker (right of the difficulty pills)
+    ctx.font = '700 11px ' + FONT_STACK;
+    ctx.fillStyle = '#cfe0f2';
+    this.drawTracked(ctx, 'REX SKIN', 686, 413, 2, false);
+    SKINS.forEach((s, i) => {
+      const sx = 746 + i * 48;
+      const unlocked = skinUnlocked(s.id, this.fossilsFound);
+      ctx.save();
+      if (!unlocked) ctx.globalAlpha = 0.35;
+      this.roundRect(ctx, sx, 394, 40, 30, 8);
+      ctx.fillStyle = s.body;
+      ctx.fill();
+      // mini Rex head: spikes + eye
+      ctx.fillStyle = s.dark;
+      for (let k = 0; k < 3; k++) {
+        ctx.beginPath();
+        ctx.moveTo(sx + 11 + k * 5, 402);
+        ctx.lineTo(sx + 13.5 + k * 5, 397 + k * 1.2);
+        ctx.lineTo(sx + 16 + k * 5, 402);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(sx + 26, 407, 3.6, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = s.line;
+      ctx.beginPath();
+      ctx.arc(sx + 27, 407, 1.6, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      if (!unlocked) {
+        // padlock over locked skins
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(sx + 20, 406, 3.6, Math.PI, 0);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        this.roundRect(ctx, sx + 15, 406, 10, 8, 2);
+        ctx.fill();
+      } else if (this.skin === s.id) {
+        ctx.strokeStyle = '#ffd257';
+        ctx.lineWidth = 2;
+        this.roundRect(ctx, sx + 1, 395, 38, 28, 7);
+        ctx.stroke();
+      }
+    });
+    if (!skinUnlocked('mint', this.fossilsFound)) {
+      ctx.font = '600 10px ' + FONT_STACK;
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.textAlign = 'center';
+      ctx.fillText('3 fossils to unlock Mint', 842, 436);
+    }
     // Bottom bar: Start + toggles (sitting on the ground strip for contrast)
     this.uiButtons = [
       // Tappable level cards (drawn above, hit-tested here)
@@ -1709,6 +1806,8 @@ export class Game implements GameCtx {
       },
       // Tappable difficulty pills (drawn above)
       ...pills.map((p) => ({ x: p.x, y: 394, w: 90, h: 30, label: p.label, card: true, action: () => this.selectDifficulty(p.d) })),
+      // Tappable skin swatches (drawn above)
+      ...SKINS.map((s, i) => ({ x: 746 + i * 48, y: 394, w: 40, h: 30, label: s.name, card: true, action: () => this.selectSkin(s.id) })),
       {
         x: 38, y: 474, w: 150, h: 40, label: 'Ghost: ' + (this.ghostOn ? 'On' : 'Off') + ' · G',
         color: '#8fa8ba',

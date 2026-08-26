@@ -1,5 +1,8 @@
 import type { GhostTrack } from './ghost';
 import { MIN_TRACK_POINTS } from './ghost';
+import { SKINS } from './sprite';
+
+const SKIN_IDS: string[] = SKINS.map((s) => s.id);
 
 /** Lifetime play statistics shown on the main menu. */
 export interface GameStats {
@@ -90,6 +93,17 @@ export function findFossil(id: string): void {
   const found = getFoundFossils();
   if (found.includes(id)) return;
   Store.set('tinyrex_fossils', [...found, id]);
+}
+
+/** Selected Rex skin id; unknown/corrupt values fall back to Classic. */
+export function getSkinId(): string {
+  const v = Store.get<string | null>('tinyrex_skin', null);
+  return v && SKIN_IDS.includes(v) ? v : 'classic';
+}
+
+/** Persist the selected Rex skin (validated against SKINS). */
+export function setSkinId(id: string): void {
+  Store.set('tinyrex_skin', SKIN_IDS.includes(id) ? id : 'classic');
 }
 
 /** Safe localStorage wrapper (settings + best records). */

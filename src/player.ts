@@ -62,6 +62,8 @@ export class Player {
   jumpCutPending = false;
   /** Konami code: rainbow skin. */
   rainbow = false;
+  /** Cosmetic skin id (see SKINS in sprite.ts); set by the Game. */
+  skin = 'classic';
   private readonly game: GameCtx;
 
   constructor(x: number, y: number, game: GameCtx) {

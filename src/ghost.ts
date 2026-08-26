@@ -97,6 +97,9 @@ export class GhostPlayer {
     return !this.finished;
   }
 
+  /** Cosmetic skin to replay with (set by the Game to the player's skin). */
+  skin: string | null = null;
+
   /** RexView for Sprite.drawRex (Player satisfies the same shape). */
   get view(): RexView {
     return {
@@ -113,6 +116,7 @@ export class GhostPlayer {
       invulnT: 0,
       dead: false,
       rot: 0,
+      skin: this.skin ?? undefined,
     };
   }
 }

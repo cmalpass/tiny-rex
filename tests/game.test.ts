@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Game } from '../src/game';
 import { LEVEL_DATA, LEVELS } from '../src/level-data';
-import { Store, getGhostEnabled, getFoundFossils, type GameStats } from '../src/store';
+import { Store, getGhostEnabled, getFoundFossils, getSkinId, type GameStats } from '../src/store';
+import type { RexView } from '../src/sprite';
 
 function makeGame(): Game {
   const canvas = document.createElement('canvas');
@@ -370,5 +371,90 @@ describe('Fossil discoveries', () => {
     f.collected = true;
     game.level!.reset();
     expect(f.collected).toBe(false);
+  });
+
+  it('announces the Mint unlock when the third fossil is unearthed', () => {
+    game.handleKey('primary');
+    game.collectFossil(0, 0, '0:0');
+    game.collectFossil(0, 0, '1:0');
+    game.collectFossil(0, 0, '2:0');
+    expect(game.fossilsFound).toHaveLength(3);
+    expect(game.status.msg).toBe('Mint Rex unlocked! Pick it on the menu');
+  });
+});
+
+describe('Rex skins', () => {
+  let game: Game;
+
+  beforeEach(() => {
+    localStorage.clear();
+    game = makeGame();
+  });
+
+  it('selects and persists a skin from the menu', () => {
+    expect(game.skin).toBe('classic');
+    game.selectSkin('ember');
+    expect(game.skin).toBe('ember');
+    expect(getSkinId()).toBe('ember');
+    // No-op when unchanged (no double SFX path to worry about)
+    game.selectSkin('ember');
+    expect(game.skin).toBe('ember');
+  });
+
+  it('rejects Mint until 3 fossils are found', () => {
+    game.selectSkin('mint');
+    expect(game.skin).toBe('classic');
+    expect(getSkinId()).toBe('classic');
+  });
+
+  it('lets the player wear the chosen skin, and the ghost too', () => {
+    game.selectSkin('glacier');
+    // Store a ghost track so a ghost is replayed on the next run
+    Store.set('tinyrex_ghost_0', {
+      date: 0,
+      score: 100,
+      time: 5,
+      pts: [
+        { t: 0, x: 40, y: 400 },
+        { t: 0.1, x: 44, y: 400 },
+        { t: 0.2, x: 48, y: 400 },
+        { t: 0.3, x: 52, y: 400 },
+      ],
+    });
+    game.handleKey('primary');
+    expect(game.player!.skin).toBe('glacier');
+    const ghost = (game as unknown as { ghost: { view: RexView } | null }).ghost;
+    expect(ghost).not.toBeNull();
+    expect(ghost!.view.skin).toBe('glacier');
+  });
+
+  it('cycles with the bracket keys on the menu, skipping locked skins', () => {
+    game.handleKey('skinNext');
+    expect(game.skin).toBe('ember');
+    game.handleKey('skinNext');
+    expect(game.skin).toBe('glacier');
+    // Mint is locked: wrap around to Classic instead
+    game.handleKey('skinNext');
+    expect(game.skin).toBe('classic');
+    game.handleKey('skinPrev');
+    expect(game.skin).toBe('glacier');
+  });
+
+  it('cycles into Mint once it is unlocked', () => {
+    game.fossilsFound = ['0:0', '1:0', '2:0'];
+    game.handleKey('skinNext');
+    expect(game.skin).toBe('ember');
+    game.handleKey('skinNext');
+    expect(game.skin).toBe('glacier');
+    game.handleKey('skinNext');
+    expect(game.skin).toBe('mint');
+  });
+
+  it('ignores skin keys while playing', () => {
+    game.selectSkin('ember');
+    game.handleKey('primary');
+    expect(game.state).toBe('playing');
+    game.handleKey('skinNext');
+    expect(game.skin).toBe('ember');
   });
 });
