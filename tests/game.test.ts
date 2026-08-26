@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Game } from '../src/game';
 import { LEVEL_DATA } from '../src/level-data';
-import { Store, type GameStats } from '../src/store';
+import { Store, getGhostEnabled, type GameStats } from '../src/store';
 
 function makeGame(): Game {
   const canvas = document.createElement('canvas');
@@ -271,5 +271,47 @@ describe('Run end: stars & per-level records', () => {
     game.victoryT = 2.7;
     game.update(0.016);
     expect(game.starChime).toBe(3);
+  });
+});
+
+describe('Ghost race', () => {
+  let game: Game;
+
+  beforeEach(() => {
+    localStorage.clear();
+    game = makeGame();
+  });
+
+  it('records a track on a new best score and replays it on the next run', () => {
+    game.handleKey('primary');
+    expect(game.ghostOn).toBe(true);
+    for (let i = 0; i < 12; i++) game.update(0.1); // ~1.2 s of play
+    game.onPlayerVictory();
+    expect(game.results!.isBestScore).toBe(true);
+    const stored = Store.get<{ pts: unknown[] } | null>('tinyrex_ghost_0', null);
+    expect(stored).not.toBeNull();
+    expect(stored!.pts.length).toBeGreaterThanOrEqual(4);
+
+    // The next run replays the stored ghost
+    game.victoryT = 2;
+    game.handleKey('primary');
+    const ghost = (game as unknown as { ghost: { x: number } | null }).ghost;
+    expect(ghost).not.toBeNull();
+    expect(ghost!.x).toBeGreaterThan(0);
+  });
+
+  it('skips the ghost when the toggle is off', () => {
+    game.handleKey('primary');
+    for (let i = 0; i < 12; i++) game.update(0.1);
+    game.onPlayerVictory();
+    expect(Store.get('tinyrex_ghost_0', null)).not.toBeNull();
+
+    game.handleKey('ghost');
+    expect(game.ghostOn).toBe(false);
+    expect(getGhostEnabled()).toBe(false);
+
+    game.victoryT = 2;
+    game.handleKey('primary');
+    expect((game as unknown as { ghost: unknown }).ghost).toBeNull();
   });
 });
