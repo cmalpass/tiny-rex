@@ -1,3 +1,6 @@
+import type { GhostTrack } from './ghost';
+import { MIN_TRACK_POINTS } from './ghost';
+
 /** Lifetime play statistics shown on the main menu. */
 export interface GameStats {
   runs: number;
@@ -43,6 +46,33 @@ export function getDailyBest(): { score: number; time: number | null } {
 /** Best star rating for the current Daily Rex challenge (0–3). */
 export function getDailyStars(): number {
   return Store.get('tinyrex_stars_daily', 0);
+}
+
+/** Ghost race toggle (default on). */
+export function getGhostEnabled(): boolean {
+  return Store.get('tinyrex_ghost_on', true);
+}
+
+export function setGhostEnabled(on: boolean): void {
+  Store.set('tinyrex_ghost_on', on);
+}
+
+/**
+ * Best-run ghost track for a selection. idx = level index for hand-built
+ * levels, -1 for Daily Rex (whose track is only valid for the seed it was
+ * recorded on, `date`).
+ */
+export function getGhostTrack(idx: number, date: number): GhostTrack | null {
+  const key = idx === -1 ? 'tinyrex_ghost_daily' : 'tinyrex_ghost_' + idx;
+  const t = Store.get<GhostTrack | null>(key, null);
+  if (!t || !Array.isArray(t.pts) || t.pts.length < MIN_TRACK_POINTS) return null;
+  if (idx === -1 && t.date !== date) return null;
+  return t;
+}
+
+export function saveGhostTrack(idx: number, track: GhostTrack): void {
+  const key = idx === -1 ? 'tinyrex_ghost_daily' : 'tinyrex_ghost_' + idx;
+  Store.set(key, track);
 }
 
 /** Safe localStorage wrapper (settings + best records). */

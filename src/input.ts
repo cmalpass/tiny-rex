@@ -2,6 +2,7 @@ export type GameKey =
   | 'restart'
   | 'mute'
   | 'reducedMotion'
+  | 'ghost'
   | 'debug'
   | 'pause'
   | 'primary'
@@ -55,6 +56,7 @@ export class Input {
       if (e.code === 'KeyR') this.onGameKey?.('restart');
       if (e.code === 'KeyM') this.onGameKey?.('mute');
       if (e.code === 'KeyV') this.onGameKey?.('reducedMotion');
+      if (e.code === 'KeyG') this.onGameKey?.('ghost');
       if (e.code === 'F2') {
         e.preventDefault();
         this.onGameKey?.('debug');

@@ -1,7 +1,7 @@
 import { CFG, VW, VH, TAU, FONT_STACK, DIFFICULTIES, STARS } from './config';
 import type { Difficulty } from './config';
 import { clamp, easeOutBack, fmtTime } from './util';
-import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars } from './store';
+import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack } from './store';
 import type { GameStats } from './store';
 import { AudioManager } from './audio';
 import { Input } from './input';
@@ -15,6 +15,7 @@ import type { ParticleType } from './particles';
 import { LEVELS } from './level-data';
 import type { LevelInfo } from './level-data';
 import { generateDailyLevel, dailySeed, dailyLabel, rexCode } from './daily';
+import { GhostRecorder, GhostPlayer } from './ghost';
 import { drawDecor } from './decor';
 import { Sprite } from './sprite';
 import type { GameCtx } from './ctx';
@@ -119,6 +120,10 @@ export class Game implements GameCtx {
   godMode = false;
   /** Cheat: rainbow Rex skin (persists across runs). */
   rainbow = false;
+  /** Ghost race: replay the stored best run alongside the player. */
+  ghostOn: boolean = getGhostEnabled();
+  private ghost: GhostPlayer | null = null;
+  private ghostRec: GhostRecorder | null = null;
   /** Cheat queue: apply max hearts once a player exists. */
   private maxHeartsCheat = false;
   private readonly cheats = new CheatSystem();
@@ -237,6 +242,13 @@ export class Game implements GameCtx {
     this.audio.play('ui');
   }
 
+  /** Toggle the ghost race (menu button or G key). */
+  toggleGhost(): void {
+    this.ghostOn = !this.ghostOn;
+    setGhostEnabled(this.ghostOn);
+    this.audio.play('ui');
+  }
+
   /** Advance to the next level and start a fresh run. */
   nextLevel(): void {
     this.levelIdx = (this.levelIdx + 1) % LEVELS.length;
@@ -281,6 +293,13 @@ export class Game implements GameCtx {
     this.checkpoint = null;
     this.results = null;
     this.victoryT = 0;
+    // Ghost race: record this run and replay the stored best alongside it
+    this.ghostRec = new GhostRecorder();
+    this.ghost = null;
+    if (this.ghostOn) {
+      const track = getGhostTrack(this.daily ? -1 : this.levelIdx, this.daily ? dailySeed() : 0);
+      if (track) this.ghost = new GhostPlayer(track);
+    }
     this.camera.x = 0;
     this.camera.shake = 0;
     this.state = 'playing';
@@ -354,6 +373,10 @@ export class Game implements GameCtx {
       this.reducedMotion = !this.reducedMotion;
       Store.set('tinyrex_reduced', this.reducedMotion);
       this.audio.play('ui');
+      return;
+    }
+    if (k === 'ghost') {
+      this.toggleGhost();
       return;
     }
     if (k === 'debug') {
@@ -584,6 +607,16 @@ export class Game implements GameCtx {
       Store.set(this.daily ? 'tinyrex_best_daily' : 'tinyrex_best_' + this.levelIdx, newBest);
       this.best = newBest;
     }
+    // Ghost race: keep this run's track when it sets a new best score
+    const rec = this.ghostRec;
+    this.ghostRec = null;
+    if (rec && isBestScore) {
+      const track = rec.finish(this.score, this.elapsed);
+      if (track) {
+        track.date = this.daily ? dailySeed() : -1;
+        saveGhostTrack(this.daily ? -1 : this.levelIdx, track);
+      }
+    }
     // Lifetime stats
     const s = getStats();
     s.victories += 1;
@@ -613,6 +646,8 @@ export class Game implements GameCtx {
     if (this.state === 'playing') {
       this.time += dt;
       this.elapsed += dt;
+      this.ghostRec?.sample(this.elapsed, this.player!.x, this.player!.y);
+      this.ghost?.update(this.elapsed);
       this.level!.update(dt, this.time, this.player!);
       this.player!.update(dt, this.time, this.input, this.level!);
       this.camera.update(dt, this.player!, this.level!.width, this);
@@ -733,6 +768,18 @@ export class Game implements GameCtx {
     }
     for (const pl of this.level!.plates) {
       if (pl.x + pl.w > camX - 40 && pl.x < camX + VW + 40) pl.draw(ctx);
+    }
+
+    // Ghost race replay (translucent, with a small tag)
+    if (this.ghost) {
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      Sprite.drawRex(ctx, this.ghost.view, this.time);
+      ctx.restore();
+      ctx.font = '800 9px ' + FONT_STACK;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(205,228,255,0.55)';
+      ctx.fillText('GHOST', this.ghost.x + 17, this.ghost.y - 8);
     }
 
     // Player
@@ -1462,7 +1509,7 @@ export class Game implements GameCtx {
       ['Restart', 'R'],
       ['Levels', '← / →'],
       ['Difficulty', '↑ / ↓'],
-      ['Mute · Calm', 'M · V'],
+      ['Mute · Calm · Ghost', 'M · V · G'],
       ['Gamepad', 'A jump · B go'],
       ['Debug', 'F2'],
     ];
@@ -1597,6 +1644,11 @@ export class Game implements GameCtx {
       },
       // Tappable difficulty pills (drawn above)
       ...pills.map((p) => ({ x: p.x, y: 394, w: 90, h: 30, label: p.label, card: true, action: () => this.selectDifficulty(p.d) })),
+      {
+        x: 38, y: 474, w: 150, h: 40, label: 'Ghost: ' + (this.ghostOn ? 'On' : 'Off') + ' · G',
+        color: '#8fa8ba',
+        action: () => this.toggleGhost(),
+      },
       { x: VW / 2 - 100, y: 470, w: 200, h: 48, label: 'Start Game', action: () => this.startGame() },
       {
         x: 648, y: 474, w: 132, h: 40, label: (this.audio.muted ? 'Sound: Off' : 'Sound: On') + ' · M',
