@@ -1,7 +1,7 @@
 import { CFG, VW, VH, TAU, FONT_STACK, DIFFICULTIES, STARS } from './config';
 import type { Difficulty } from './config';
 import { clamp, easeOutBack, fmtTime } from './util';
-import { Store, getStats, getBest, getBestStars } from './store';
+import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars } from './store';
 import type { GameStats } from './store';
 import { AudioManager } from './audio';
 import { Input } from './input';
@@ -13,6 +13,8 @@ import { Player } from './player';
 import { Particle, FloatingText } from './particles';
 import type { ParticleType } from './particles';
 import { LEVELS } from './level-data';
+import type { LevelInfo } from './level-data';
+import { generateDailyLevel, dailySeed, dailyLabel, rexCode } from './daily';
 import { drawDecor } from './decor';
 import { Sprite } from './sprite';
 import type { GameCtx } from './ctx';
@@ -122,6 +124,11 @@ export class Game implements GameCtx {
   private readonly cheats = new CheatSystem();
   /** Selected level index (persisted). */
   levelIdx: number = clamp(Store.get('tinyrex_level', 0), 0, LEVELS.length - 1);
+  /** Daily Rex is selected instead of a hand-built level. */
+  daily = false;
+  /** Cached generated daily level (regenerated when the date seed changes). */
+  private dailyInfo: LevelInfo | null = null;
+  private dailyInfoSeed = 0;
   /** Active difficulty (persisted). */
   difficulty: Difficulty = Store.get<Difficulty>('tinyrex_difficulty', 'normal');
   /** Best score/time for the selected level. */
@@ -146,7 +153,7 @@ export class Game implements GameCtx {
     this.bindPointer();
     this.resize();
     this.loadRecords();
-    this.bg.theme = LEVELS[this.levelIdx].theme;
+    this.bg.theme = this.currentInfo().theme;
     window.addEventListener('resize', () => this.resize());
   }
 
@@ -155,16 +162,35 @@ export class Game implements GameCtx {
     return DIFFICULTIES[this.difficulty].hearts;
   }
 
-  /** (Re)load per-level records + lifetime stats from storage. */
+  /** The LevelInfo for the active selection (Daily Rex or a hand-built level). */
+  currentInfo(): LevelInfo {
+    if (this.daily) {
+      const seed = dailySeed();
+      if (!this.dailyInfo || this.dailyInfoSeed !== seed) {
+        this.dailyInfo = generateDailyLevel(seed);
+        this.dailyInfoSeed = seed;
+      }
+      return this.dailyInfo;
+    }
+    return LEVELS[this.levelIdx];
+  }
+
+  /** (Re)load records + lifetime stats from storage for the active selection. */
   loadRecords(): void {
-    this.best = getBest(this.levelIdx);
-    this.bestStars = getBestStars(this.levelIdx);
+    if (this.daily) {
+      this.best = getDailyBest();
+      this.bestStars = getDailyStars();
+    } else {
+      this.best = getBest(this.levelIdx);
+      this.bestStars = getBestStars(this.levelIdx);
+    }
     this.stats = getStats();
   }
 
   /* ---------- level & difficulty selection ---------- */
   cycleLevel(dir: number): void {
     const n = LEVELS.length;
+    this.daily = false;
     this.levelIdx = (this.levelIdx + dir + n) % n;
     Store.set('tinyrex_level', this.levelIdx);
     this.loadRecords();
@@ -173,11 +199,26 @@ export class Game implements GameCtx {
   }
 
   selectLevel(idx: number): void {
-    if (idx === this.levelIdx || idx < 0 || idx >= LEVELS.length) return;
+    if (idx < 0 || idx >= LEVELS.length) return;
+    this.daily = false;
+    if (idx === this.levelIdx) {
+      this.loadRecords();
+      this.bg.theme = LEVELS[idx].theme;
+      return;
+    }
     this.levelIdx = idx;
     Store.set('tinyrex_level', idx);
     this.loadRecords();
     this.bg.theme = LEVELS[idx].theme;
+    this.audio.play('ui');
+  }
+
+  /** Select today's Daily Rex challenge. */
+  selectDaily(): void {
+    if (this.daily) return;
+    this.daily = true;
+    this.loadRecords();
+    this.bg.theme = this.currentInfo().theme;
     this.audio.play('ui');
   }
 
@@ -206,7 +247,7 @@ export class Game implements GameCtx {
 
   /* ---------- lifecycle ---------- */
   buildLevel(): void {
-    const info = LEVELS[this.levelIdx];
+    const info = this.currentInfo();
     this.level = new Level(info.def, this, DIFFICULTIES[this.difficulty].enemySpeed);
     this.bg.theme = info.theme;
   }
@@ -245,9 +286,9 @@ export class Game implements GameCtx {
     this.state = 'playing';
     this.updatePauseButton();
     this.setCheckpointAt(0);
-    this.addStatus('Find your way to the glowing nest!', '#fff');
+    this.addStatus(this.daily ? 'Daily challenge — beat your best!' : 'Find your way to the glowing nest!', '#fff');
     this.audio.unlock();
-    this.audio.startMusic(LEVELS[this.levelIdx].theme);
+    this.audio.startMusic(this.currentInfo().theme);
     // Lifetime stats
     const s = getStats();
     s.runs += 1;
@@ -361,7 +402,7 @@ export class Game implements GameCtx {
     if (this.state !== 'paused') return;
     this.state = 'playing';
     this.updatePauseButton();
-    this.audio.startMusic(LEVELS[this.levelIdx].theme);
+    this.audio.startMusic(this.currentInfo().theme);
     this.audio.play('ui');
   }
 
@@ -529,10 +570,10 @@ export class Game implements GameCtx {
     const isBestStars = stars > this.bestStars;
     if (isBestStars) {
       this.bestStars = stars;
-      Store.set('tinyrex_stars_' + this.levelIdx, stars);
+      Store.set(this.daily ? 'tinyrex_stars_daily' : 'tinyrex_stars_' + this.levelIdx, stars);
     }
     // Per-level records (merge best score & best time)
-    const prev = getBest(this.levelIdx);
+    const prev = this.daily ? getDailyBest() : getBest(this.levelIdx);
     const isBestScore = this.score > prev.score;
     const isBestTime = prev.time === null || this.elapsed < prev.time;
     const newBest = {
@@ -540,7 +581,7 @@ export class Game implements GameCtx {
       time: isBestTime ? this.elapsed : prev.time,
     };
     if (isBestScore || isBestTime) {
-      Store.set('tinyrex_best_' + this.levelIdx, newBest);
+      Store.set(this.daily ? 'tinyrex_best_daily' : 'tinyrex_best_' + this.levelIdx, newBest);
       this.best = newBest;
     }
     // Lifetime stats
@@ -1224,7 +1265,11 @@ export class Game implements GameCtx {
     ctx.textAlign = 'center';
     ctx.font = '700 15px ' + FONT_STACK;
     ctx.fillStyle = '#dce8f5';
-    ctx.fillText('Run: ' + this.deaths + ' deaths · ' + this.stomps + ' stomps', VW / 2, py + 88);
+    ctx.fillText(
+      'Run: ' + this.deaths + ' deaths · ' + this.stomps + ' stomps' + (this.daily ? '  ·  Rex code ' + rexCode(dailySeed()) : ''),
+      VW / 2,
+      py + 88,
+    );
     // Star rating (1 for finishing, +1 for ≥2 hearts, +1 for ≥80% crystals)
     const stars = r.stars ?? 0;
     for (let i = 0; i < 3; i++) {
@@ -1305,7 +1350,7 @@ export class Game implements GameCtx {
     const btnIn = clamp((t - VICTORY_BUTTON_T) / 0.35, 0, 1);
     if (btnIn > 0) {
       const by = py + 308;
-      const hasNext = this.levelIdx < LEVELS.length - 1;
+      const hasNext = !this.daily && this.levelIdx < LEVELS.length - 1;
       this.uiButtons = [
         { x: hasNext ? VW / 2 - 245 : VW / 2 - 220, y: by, w: hasNext ? 150 : 200, h: 52, label: 'Play Again', action: () => this.startGame() },
         ...(hasNext
@@ -1383,7 +1428,7 @@ export class Game implements GameCtx {
     ctx.fillStyle = tg;
     ctx.fillText('TINY REX', VW / 2, 118 + bounce);
     // Subtitle: selected level name, tracked uppercase for a clean lockup
-    const lvl = LEVELS[this.levelIdx];
+    const lvl = this.currentInfo();
     ctx.font = '800 22px ' + FONT_STACK;
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(60,40,20,0.6)';
@@ -1452,27 +1497,31 @@ export class Game implements GameCtx {
       ctx.fillStyle = '#cfe0f2';
       ctx.fillText(r, qx + 38, y);
     });
-    // Level cards (one per level, centred row)
+    // Level cards (one per level + Daily Rex, centred row)
     const cardY = 232, cardH = 150;
-    const cardW = 170, cardGap = 16;
-    const cardX0 = VW / 2 - (cardW * LEVELS.length + cardGap * (LEVELS.length - 1)) / 2;
+    const cardCount = LEVELS.length + 1;
+    const cardGap = 14;
+    const cardW = Math.floor((680 - cardGap * (cardCount - 1)) / cardCount);
+    const cardX0 = VW / 2 - (cardW * cardCount + cardGap * (cardCount - 1)) / 2;
     const cardAccents = ['#9ff0a8', '#ff9d7a', '#8fd8ff'];
-    LEVELS.forEach((li, i) => {
+    for (let i = 0; i < cardCount; i++) {
+      const isDaily = i === LEVELS.length;
       const cx0 = cardX0 + i * (cardW + cardGap);
       const cw = cardW;
-      const selected = i === this.levelIdx;
+      const selected = isDaily ? this.daily : i === this.levelIdx && !this.daily;
+      const accent = isDaily ? '#c9a0ff' : cardAccents[i % cardAccents.length];
       ctx.fillStyle = 'rgba(16,26,40,0.66)';
       this.roundRect(ctx, cx0, cardY, cw, cardH, 14);
       ctx.fill();
-      ctx.fillStyle = cardAccents[i % cardAccents.length];
+      ctx.fillStyle = accent;
       this.roundRect(ctx, cx0, cardY, cw, 6, 3);
       ctx.fill();
       // Name
       ctx.font = '800 13px ' + FONT_STACK;
-      ctx.fillStyle = selected ? '#ffe28a' : cardAccents[i % cardAccents.length];
-      this.drawTracked(ctx, li.subtitle, cx0 + cw / 2, cardY + 36, 1.5, false);
+      ctx.fillStyle = selected ? '#ffe28a' : accent;
+      this.drawTracked(ctx, isDaily ? 'DAILY' : LEVELS[i].subtitle, cx0 + cw / 2, cardY + 36, 1.5, false);
       // Star progress
-      const bStars = getBestStars(i);
+      const bStars = isDaily ? getDailyStars() : getBestStars(i);
       for (let s = 0; s < 3; s++) {
         this.starPath(ctx, cx0 + cw / 2 + (s - 1) * 30, cardY + 64, 10);
         if (s < bStars) {
@@ -1487,7 +1536,7 @@ export class Game implements GameCtx {
         }
       }
       // Records
-      const bb = getBest(i);
+      const bb = isDaily ? getDailyBest() : getBest(i);
       ctx.font = '600 12px ' + FONT_STACK;
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(220,232,245,0.85)';
@@ -1495,14 +1544,14 @@ export class Game implements GameCtx {
       ctx.fillText('Time ' + (bb.time === null ? '—' : fmtTime(bb.time)), cx0 + cw / 2, cardY + 118);
       ctx.font = '600 11px ' + FONT_STACK;
       ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      ctx.fillText('TAP · ←/→', cx0 + cw / 2, cardY + 138);
+      ctx.fillText(isDaily ? dailyLabel(dailySeed()) : 'TAP · ←/→', cx0 + cw / 2, cardY + 138);
       if (selected) {
-        ctx.strokeStyle = '#ffd257';
+        ctx.strokeStyle = isDaily ? '#c9a0ff' : '#ffd257';
         ctx.lineWidth = 3;
         this.roundRect(ctx, cx0 - 2, cardY - 2, cw + 4, cardH + 4, 16);
         ctx.stroke();
       }
-    });
+    }
     // Difficulty pills
     const pills: Array<{ d: Difficulty; x: number; label: string }> = [
       { d: 'easy', x: 335, label: 'EASY' },
@@ -1536,6 +1585,16 @@ export class Game implements GameCtx {
         card: true,
         action: () => this.selectLevel(i),
       })),
+      // Daily Rex card
+      {
+        x: cardX0 + LEVELS.length * (cardW + cardGap),
+        y: cardY,
+        w: cardW,
+        h: cardH,
+        label: 'Daily Challenge',
+        card: true,
+        action: () => this.selectDaily(),
+      },
       // Tappable difficulty pills (drawn above)
       ...pills.map((p) => ({ x: p.x, y: 394, w: 90, h: 30, label: p.label, card: true, action: () => this.selectDifficulty(p.d) })),
       { x: VW / 2 - 100, y: 470, w: 200, h: 48, label: 'Start Game', action: () => this.startGame() },
