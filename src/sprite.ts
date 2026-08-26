@@ -483,3 +483,35 @@ export function drawGlob(ctx: CanvasRenderingContext2D, x: number, y: number, r:
   ctx.fill();
   ctx.restore();
 }
+
+/** Magma King's glob: a molten ember with a glowing core and trailing sparks. */
+export function drawMagmaGlob(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  const wob = 1 + Math.sin(t * 18) * 0.12;
+  // Outer glow
+  ctx.fillStyle = 'rgba(255,107,53,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * 1.7 * wob, r * 1.7 / wob, 0, 0, TAU);
+  ctx.fill();
+  // Molten body
+  const g = ctx.createRadialGradient(-r * 0.25, -r * 0.3, 1, 0, 0, r * wob);
+  g.addColorStop(0, '#ffd257');
+  g.addColorStop(0.55, '#ff6b35');
+  g.addColorStop(1, '#c93a1e');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r * wob, r / wob, 0, 0, TAU);
+  ctx.fill();
+  // Hot core
+  ctx.fillStyle = 'rgba(255,240,200,0.85)';
+  ctx.beginPath();
+  ctx.arc(-r * 0.18, -r * 0.2, r * 0.3, 0, TAU);
+  ctx.fill();
+  // Spark
+  ctx.fillStyle = 'rgba(255,210,87,0.9)';
+  ctx.beginPath();
+  ctx.arc(r * 0.4, r * 0.35, r * 0.16, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}

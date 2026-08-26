@@ -76,6 +76,10 @@ export interface LevelDef {
   plates?: { x: number; y: number; door: number }[];
   /** Sliding gates: {x, y, w, h}; y is the top, bottom meets the ground. */
   doors?: { x: number; y: number; w: number; h: number }[];
+  /** Boss placement + patrol bounds (x is the left edge of the boss). */
+  boss?: { x: number; y: number; minX: number; maxX: number };
+  /** Stompable crystal orbs that stun the boss (boss arenas only). */
+  orbs?: Point[];
 }
 
 export type LevelTheme = 'meadow' | 'volcanic' | 'frost';
@@ -480,10 +484,81 @@ const LEVEL_3: LevelDef = {
   ],
 };
 
+// Molten Nest — the endgame: a short lava gauntlet into a walled boss arena.
+// The Magma King guards the nest gate; defeating him latches the door open.
+const LEVEL_4: LevelDef = {
+  width: 3950,
+  startX: 120,
+  startY: 414,
+  startGroundY: 460,
+  platforms: [
+    // ---- Approach: lava pits + a high fossil ledge ----
+    { x: 0, y: 460, w: 900, h: 120, type: 'ground' },
+    { x: 1020, y: 460, w: 500, h: 120, type: 'ground' },
+    { x: 1650, y: 460, w: 530, h: 120, type: 'ground' },
+    { x: 1300, y: 330, w: 120, h: 24, type: 'stone' }, // high ledge (fossil)
+    // ---- Boss arena (walled) ----
+    { x: 2244, y: 150, w: 40, h: 190, type: 'stone' }, // left wall (gap under = entry)
+    { x: 2244, y: 460, w: 1100, h: 120, type: 'ground' }, // arena floor (runs under left wall)
+    { x: 3344, y: 150, w: 40, h: 190, type: 'stone' }, // right wall (gap under = exit)
+    // Orb perches
+    { x: 2380, y: 320, w: 110, h: 24, type: 'stone' },
+    { x: 3150, y: 320, w: 110, h: 24, type: 'stone' },
+    { x: 2720, y: 250, w: 120, h: 24, type: 'stone' },
+    // ---- Exit: nest gate + goal ----
+    { x: 3384, y: 460, w: 566, h: 120, type: 'ground' },
+  ],
+  crystals: [
+    { x: 560, y: 420 }, { x: 700, y: 420 }, { x: 840, y: 420 },
+    { x: 1180, y: 420 }, { x: 1330, y: 290 }, { x: 1390, y: 290 },
+    { x: 1780, y: 420 }, { x: 2020, y: 420 },
+    { x: 2400, y: 420 }, { x: 3240, y: 420 }, // arena floor
+    { x: 2736, y: 212 }, { x: 2824, y: 212 }, // high perch
+    { x: 3480, y: 420 },
+  ],
+  hazards: [
+    { type: 'lava', x: 900, y: 520, w: 120 },
+    { type: 'lava', x: 1520, y: 520, w: 130 },
+    { type: 'lava', x: 2180, y: 520, w: 64 },
+  ],
+  checkpoints: [
+    { x: 2100, y: 460 }, // just before the arena
+  ],
+  enemies: [
+    { type: 'beetle', x: 1150, y: 432, minX: 1040, maxX: 1480 },
+  ],
+  hearts: [
+    { x: 3560, y: 428 }, // in front of the nest gate
+  ],
+  fossils: [
+    { x: 1352, y: 296 }, // high ledge in the approach
+    { x: 3320, y: 428 }, // arena nook between boss patrol and right wall
+    { x: 3720, y: 428 }, // behind the gate, near the nest
+  ],
+  boss: { x: 2760, y: 356, minX: 2320, maxX: 3160 },
+  orbs: [
+    { x: 2435, y: 286 },
+    { x: 3205, y: 286 },
+    { x: 2780, y: 216 },
+  ],
+  doors: [
+    { x: 3600, y: 300, w: 36, h: 160 }, // nest gate — latches open on boss defeat
+  ],
+  goal: { x: 3780, y: 460 },
+  decor: [
+    { type: 'sign', x: 120 },
+    { type: 'rock', x: 300 }, { type: 'crystalrock', x: 460, s: 0.9 },
+    { type: 'rock', x: 2000 }, { type: 'crystalrock', x: 2060, s: 1.0 },
+    { type: 'crystalrock', x: 2600, s: 1.1 },
+    { type: 'crystalrock', x: 3700, s: 1.2 }, { type: 'rock', x: 3850 },
+  ],
+};
+
 export const LEVELS: LevelInfo[] = [
   { id: 0, name: 'Crystal Valley', subtitle: 'CRYSTAL VALLEY', theme: 'meadow', def: LEVEL_1 },
   { id: 1, name: 'Volcanic Depths', subtitle: 'VOLCANIC DEPTHS', theme: 'volcanic', def: LEVEL_2 },
   { id: 2, name: 'Frostpeak Pass', subtitle: 'FROSTPEAK PASS', theme: 'frost', def: LEVEL_3 },
+  { id: 3, name: 'Molten Nest', subtitle: 'MOLTEN NEST', theme: 'volcanic', def: LEVEL_4 },
 ];
 
 /** Backward-compatible handle for the original level (Crystal Valley). */

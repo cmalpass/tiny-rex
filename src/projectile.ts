@@ -2,9 +2,11 @@ import { CFG } from './config';
 import { overlap } from './util';
 import type { Level } from './level';
 import type { Player } from './player';
-import { drawGlob } from './sprite';
+import { drawGlob, drawMagmaGlob } from './sprite';
 
-/** A glob of spitter goo: arcing, bounces once on the ground, fades out. */
+export type ProjectileKind = 'goo' | 'magma';
+
+/** A glob of spitter goo (or boss magma): arcs, bounces once, fades out. */
 export class Projectile {
   x: number;
   y: number;
@@ -17,12 +19,17 @@ export class Projectile {
   age = 0;
   /** extra life granted after a bounce. */
   life = 2.4;
+  kind: ProjectileKind;
 
-  constructor(x: number, y: number, vx: number, vy: number) {
+  constructor(
+    x: number, y: number, vx: number, vy: number,
+    kind: ProjectileKind = 'goo',
+  ) {
     this.x = x;
     this.y = y;
     this.vx = vx;
     this.vy = vy;
+    this.kind = kind;
   }
 
   get rect(): { x: number; y: number; w: number; h: number } {
@@ -35,6 +42,8 @@ export class Projectile {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     // pop against solid ground
+    const popColors =
+      this.kind === 'magma' ? ['#ff9d3f', '#ffd257'] : ['#8fe07a', '#c9f0a0'];
     for (const p of level.platforms) {
       if (!p.solid() || !overlap(this.rect, p)) continue;
       if (this.vy > 0 && this.bounces > 0) {
@@ -43,10 +52,10 @@ export class Projectile {
         this.vy = -Math.abs(this.vy) * 0.42;
         this.vx *= 0.72;
         this.life = Math.max(this.life, 0.9);
-        level.game.burst(this.x, this.y + this.r, 6, ['#8fe07a', '#c9f0a0'], 'dot', 90);
+        level.game.burst(this.x, this.y + this.r, 6, popColors, 'dot', 90);
       } else {
         this.dead = true;
-        level.game.burst(this.x, this.y, 7, ['#8fe07a'], 'dot', 80);
+        level.game.burst(this.x, this.y, 7, [popColors[0]], 'dot', 80);
       }
       break;
     }
@@ -60,6 +69,7 @@ export class Projectile {
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number): void {
-    drawGlob(ctx, this.x, this.y, this.r, t);
+    if (this.kind === 'magma') drawMagmaGlob(ctx, this.x, this.y, this.r, t);
+    else drawGlob(ctx, this.x, this.y, this.r, t);
   }
 }

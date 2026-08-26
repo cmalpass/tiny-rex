@@ -36,6 +36,10 @@ export const CFG = {
     heartFull: 200,
     /** Points a hidden fossil is worth (re-collectable each run). */
     fossil: 150,
+    /** Points for shattering one of the Magma King's crystal orbs. */
+    orb: 150,
+    /** Points for defeating the Magma King. */
+    boss: 1500,
     timeBonusBase: 2400,
     timeBonusPerSec: 10,
   },
@@ -46,6 +50,8 @@ export const CFG = {
   spring: { vel: 900 },
   /** Spitter enemy: firing range, cooldown, and projectile tuning. */
   spitter: { range: 520, band: 150, fireCd: 1.8, projSpeed: 1.06, projGravity: 700 },
+  /** Magma King: charge speed (px/s) and magma-glob fire speed. */
+  boss: { chargeSpeed: 640, shootSpeed: 430 },
 } as const;
 
 export const VW = CFG.view.w;
