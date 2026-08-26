@@ -51,4 +51,9 @@ export interface GameCtx {
    * the player is already at full health.
    */
   collectHeart(x: number, y: number): void;
+  /**
+   * A hidden fossil was unearthed: score + sparkle, and the first discovery
+   * is persisted to the fossil codex (id = "<levelIdx>:<i>").
+   */
+  collectFossil(x: number, y: number, id: string): void;
 }

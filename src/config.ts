@@ -34,6 +34,8 @@ export const CFG = {
     heartBonus: 400,
     /** Points a healing heart is worth when collected at full health. */
     heartFull: 200,
+    /** Points a hidden fossil is worth (re-collectable each run). */
+    fossil: 150,
     timeBonusBase: 2400,
     timeBonusPerSec: 10,
   },

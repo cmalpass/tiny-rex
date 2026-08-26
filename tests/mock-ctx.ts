@@ -75,6 +75,12 @@ export function makeCtx(): MockCtx {
       ctx.burst(x, y, 12, ['#ff8fa3', '#ffd9e2', '#fff'], 'dot', 140);
       ctx.audio.play('heart');
     },
+    collectFossil: (x, y, id) => {
+      ctx.addScore(150, x, y);
+      ctx.burst(x, y, 10, ['#f4ecd9', '#e8dcc0'], 'dot', 130);
+      ctx.audio.play('fossil');
+      ctx.statuses.push('fossil:' + id);
+    },
   };
   return ctx;
 }

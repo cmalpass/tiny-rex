@@ -70,6 +70,8 @@ export interface LevelDef {
   decor: DecorDef[];
   /** Spring pads: {x, groundTopY}. Launch the player upward. */
   springs?: Point[];
+  /** Hidden fossils: persistent meta-collectibles (id = "<levelIdx>:<i>"). */
+  fossils?: Point[];
   /** Pressure plates: hold to keep the referenced door (index into `doors`) open. */
   plates?: { x: number; y: number; door: number }[];
   /** Sliding gates: {x, y, w, h}; y is the top, bottom meets the ground. */
@@ -199,6 +201,11 @@ const LEVEL_1: LevelDef = {
     { x: 2660, y: 330 }, // stone ledge before the spikes
     { x: 5080, y: 428 }, // just past the spike gauntlet
   ],
+  fossils: [
+    { x: 3255, y: 163 }, // high bonus route — top of the jump chain
+    { x: 3230, y: 363 }, // stepping stone over lava pool A
+    { x: 4990, y: 323 }, // stone ledge right above the spike pit
+  ],
   goal: { x: 7150, y: 460 },
   decor: [
     { type: 'sign', x: 120 },
@@ -320,6 +327,11 @@ const LEVEL_2: LevelDef = {
   hearts: [
     { x: 4300, y: 428 }, // safe ground after the lava moat
     { x: 6340, y: 332 }, // stone ledge above the rock gauntlet
+  ],
+  fossils: [
+    { x: 2830, y: 393 }, // stepping stone mid-moat, lava on both sides
+    { x: 5685, y: 313 }, // stone above the twin falling-rock gauntlet
+    { x: 7010, y: 275 }, // high stone of the home-stretch jump chain
   ],
   goal: { x: 7350, y: 460 },
   decor: [
@@ -446,6 +458,11 @@ const LEVEL_3: LevelDef = {
   hearts: [
     { x: 3720, y: 428 }, // just past the first gate
     { x: 7720, y: 428 }, // past the final gate, near the goal
+  ],
+  fossils: [
+    { x: 3860, y: 425 }, // just behind the first gate
+    { x: 5925, y: 263 }, // bonus spring ledge, high above the rockfall ridge
+    { x: 7700, y: 425 }, // behind the final gate, patrolled by a beetle
   ],
   goal: { x: 7850, y: 460 },
   decor: [

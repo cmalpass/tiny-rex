@@ -1,7 +1,7 @@
 import { CFG, VW, VH, TAU, FONT_STACK, DIFFICULTIES, STARS } from './config';
 import type { Difficulty } from './config';
 import { clamp, easeOutBack, fmtTime } from './util';
-import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack } from './store';
+import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack, getFoundFossils, findFossil } from './store';
 import type { GameStats } from './store';
 import { AudioManager } from './audio';
 import { Input } from './input';
@@ -122,6 +122,8 @@ export class Game implements GameCtx {
   rainbow = false;
   /** Ghost race: replay the stored best run alongside the player. */
   ghostOn: boolean = getGhostEnabled();
+  /** Fossil ids discovered so far (persistent meta-progress). */
+  fossilsFound: string[] = getFoundFossils();
   private ghost: GhostPlayer | null = null;
   private ghostRec: GhostRecorder | null = null;
   /** Cheat queue: apply max hearts once a player exists. */
@@ -260,8 +262,14 @@ export class Game implements GameCtx {
   /* ---------- lifecycle ---------- */
   buildLevel(): void {
     const info = this.currentInfo();
-    this.level = new Level(info.def, this, DIFFICULTIES[this.difficulty].enemySpeed);
+    // Daily levels have no fossils; the sentinel keeps fossil ids stable.
+    this.level = new Level(info.def, this, DIFFICULTIES[this.difficulty].enemySpeed, this.daily ? -1 : this.levelIdx);
     this.bg.theme = info.theme;
+  }
+
+  /** Total hidden fossils across the hand-built levels. */
+  totalFossils(): number {
+    return LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0);
   }
 
   startGame(): void {
@@ -524,6 +532,25 @@ export class Game implements GameCtx {
     }
   }
 
+  /** Fossil pickup (GameCtx): persistent discovery + re-collectable score. */
+  collectFossil(x: number, y: number, id: string): void {
+    const first = !this.fossilsFound.includes(id);
+    if (first) {
+      findFossil(id);
+      this.fossilsFound = getFoundFossils();
+    }
+    this.addScore(CFG.score.fossil, x, y - 14);
+    this.audio.play('fossil');
+    if (first) {
+      this.addStatus('Fossil found! ' + this.fossilsFound.length + '/' + this.totalFossils(), '#e8dcc0');
+      this.addShake(2);
+      this.burst(x, y, 22, ['#f4ecd9', '#e8dcc0', '#cbb98f', '#fff'], 'dot', 170);
+      this.texts.push(new FloatingText(x, y - 34, 'NEW FOSSIL!', '#f4ecd9'));
+    } else {
+      this.burst(x, y, 10, ['#f4ecd9', '#e8dcc0'], 'dot', 130);
+    }
+  }
+
   burst(x: number, y: number, n: number, colors: string[], type: ParticleType, speed: number): void {
     if (this.reducedMotion) n = Math.max(1, Math.floor(n * 0.4));
     for (let i = 0; i < n; i++) {
@@ -752,6 +779,9 @@ export class Game implements GameCtx {
     }
     for (const h of this.level!.hearts) {
       if (!h.collected) h.draw(ctx, this.time);
+    }
+    for (const f of this.level!.fossils) {
+      if (!f.collected) f.draw(ctx, this.time);
     }
     for (const e of this.level!.enemies) {
       if (e.dead) continue;
@@ -1048,17 +1078,34 @@ export class Game implements GameCtx {
     ctx.font = '800 17px ' + FONT_STACK;
     ctx.textAlign = 'left';
     ctx.fillText('× ' + (this.crystalsGot || 0) + '/' + (this.level ? this.level.totalCrystals : 0), cx + 14, 38);
-    // Score & time (right)
+    // Score, time & fossil count (right)
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(20,30,45,0.55)';
-    this.roundRect(ctx, VW - 190, 10, 180, 62, 12);
+    this.roundRect(ctx, VW - 190, 10, 180, 84, 12);
     ctx.fill();
     ctx.fillStyle = '#ffe28a';
     ctx.font = '800 19px ' + FONT_STACK;
     ctx.fillText('Score ' + this.score, VW - 24, 34);
     ctx.fillStyle = '#cfe8ff';
     ctx.font = '700 15px ' + FONT_STACK;
-    ctx.fillText('Time ' + fmtTime(this.elapsed), VW - 24, 58);
+    ctx.fillText('Time ' + fmtTime(this.elapsed), VW - 24, 56);
+    // Fossil meta-progress with a tiny bone glyph
+    ctx.font = '700 13px ' + FONT_STACK;
+    const fossilTxt = 'Fossils ' + this.fossilsFound.length + '/' + this.totalFossils();
+    const fossilW = ctx.measureText(fossilTxt).width;
+    ctx.fillText(fossilTxt, VW - 24, 80);
+    ctx.save();
+    ctx.translate(VW - 24 - fossilW - 16, 75);
+    ctx.fillStyle = '#e8dcc0';
+    ctx.fillRect(-6, -1.8, 12, 3.6);
+    for (const kx of [-7, 7]) {
+      for (const ky of [-2.2, 2.2]) {
+        ctx.beginPath();
+        ctx.arc(kx, ky, 2.2, 0, TAU);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
     // Progress toward the nest (top centre, between the panels)
     if (this.player && this.level) this.drawProgress(ctx);
     // Combo chip while a crystal chain is alive
@@ -1495,7 +1542,7 @@ export class Game implements GameCtx {
     ctx.font = '600 12px ' + FONT_STACK;
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText(
-      'PLAYS ' + this.stats.runs + '  ·  DEATHS ' + this.stats.deaths + '  ·  CRYSTALS ' + this.stats.crystals + '  ·  HEARTS ' + this.stats.hearts + '  ·  SINCE ' + since,
+      'PLAYS ' + this.stats.runs + '  ·  DEATHS ' + this.stats.deaths + '  ·  CRYSTALS ' + this.stats.crystals + '  ·  HEARTS ' + this.stats.hearts + '  ·  FOSSILS ' + this.fossilsFound.length + '/' + this.totalFossils() + '  ·  SINCE ' + since,
       VW / 2,
       205,
     );
@@ -1532,6 +1579,7 @@ export class Game implements GameCtx {
       'Stomp beetles, trikes & pteros',
       'Watch for lava, spikes & rocks',
       'Touch flags to save progress',
+      'Unearth the hidden fossils',
     ];
     ctx.font = '600 13px ' + FONT_STACK;
     quest.forEach((r, i) => {
@@ -1582,13 +1630,30 @@ export class Game implements GameCtx {
           ctx.stroke();
         }
       }
+      // Fossil dots (hand-built levels only: one per hidden fossil)
+      if (!isDaily) {
+        const fCount = LEVELS[i].def.fossils?.length ?? 0;
+        for (let f = 0; f < fCount; f++) {
+          const found = this.fossilsFound.includes(i + ':' + f);
+          const fx = cx0 + cw / 2 + (f - (fCount - 1) / 2) * 18;
+          ctx.fillStyle = found ? '#f4ecd9' : 'rgba(255,255,255,0.16)';
+          ctx.fillRect(fx - 5, cardY + 82, 10, 2.6);
+          for (const kx of [-5, 5]) {
+            for (const ky of [-2.4, 2.4]) {
+              ctx.beginPath();
+              ctx.arc(fx + kx, cardY + 83.3 + ky, 2.4, 0, TAU);
+              ctx.fill();
+            }
+          }
+        }
+      }
       // Records
       const bb = isDaily ? getDailyBest() : getBest(i);
       ctx.font = '600 12px ' + FONT_STACK;
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(220,232,245,0.85)';
-      ctx.fillText('Score ' + (bb.score || '—'), cx0 + cw / 2, cardY + 98);
-      ctx.fillText('Time ' + (bb.time === null ? '—' : fmtTime(bb.time)), cx0 + cw / 2, cardY + 118);
+      ctx.fillText('Score ' + (bb.score || '—'), cx0 + cw / 2, cardY + 104);
+      ctx.fillText('Time ' + (bb.time === null ? '—' : fmtTime(bb.time)), cx0 + cw / 2, cardY + 122);
       ctx.font = '600 11px ' + FONT_STACK;
       ctx.fillStyle = 'rgba(255,255,255,0.45)';
       ctx.fillText(isDaily ? dailyLabel(dailySeed()) : 'TAP · ←/→', cx0 + cw / 2, cardY + 138);

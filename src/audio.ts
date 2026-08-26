@@ -307,6 +307,13 @@ export class AudioManager {
         this.tone({ freq: 340, to: 130, dur: 0.16, type: 'sawtooth', vol: 0.14 });
         this.noiseBurst({ dur: 0.08, vol: 0.08, freq: 700 });
         break;
+      case 'fossil': {
+        // Deep unearth thud followed by a warm two-note chime.
+        this.noiseBurst({ dur: 0.1, vol: 0.14, freq: 420 });
+        this.tone({ freq: 392, dur: 0.14, type: 'triangle', vol: 0.2, delay: 0.04 });
+        this.tone({ freq: 587, dur: 0.2, type: 'sine', vol: 0.18, delay: 0.14 });
+        break;
+      }
       case 'cheat':
         [784, 988, 1175, 1568].forEach((f, i) =>
           this.tone({ freq: f, dur: 0.09, type: 'sine', vol: 0.16, delay: i * 0.05 }),
