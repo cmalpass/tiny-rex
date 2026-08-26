@@ -287,3 +287,36 @@ describe('LEVEL_3 — Frostpeak Pass integrity', () => {
     }
   });
 });
+
+describe('Hidden fossils (all hand-built levels)', () => {
+  it('places exactly three fossils per level (nine total)', () => {
+    for (const l of LEVELS) {
+      expect(l.def.fossils, l.name).toHaveLength(3);
+    }
+    expect(LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0)).toBe(9);
+  });
+
+  it('keeps every fossil inside the level bounds, above the ground line', () => {
+    for (const l of LEVELS) {
+      for (const f of l.def.fossils ?? []) {
+        expect(f.x, l.name + ' fossil x=' + f.x).toBeGreaterThan(0);
+        expect(f.x, l.name + ' fossil x=' + f.x).toBeLessThan(l.def.width);
+        expect(f.y, l.name + ' fossil y=' + f.y).toBeGreaterThan(100);
+        expect(f.y, l.name + ' fossil y=' + f.y).toBeLessThan(460);
+      }
+    }
+  });
+
+  it('perches every fossil on a solid platform a standing player can reach', () => {
+    // Player is 46px tall: standing on a platform top at p.y, its rect spans
+    // [p.y-46, p.y]. The fossil rect [f.y-13, f.y+13] must overlap it.
+    for (const l of LEVELS) {
+      for (const f of l.def.fossils ?? []) {
+        const perch = (l.def.platforms ?? []).some(
+          (p) => f.x >= p.x && f.x <= p.x + p.w && p.y > f.y - 13 && p.y < f.y + 59,
+        );
+        expect(perch, l.name + ' fossil at (' + f.x + ',' + f.y + ') has no perch').toBe(true);
+      }
+    }
+  });
+});

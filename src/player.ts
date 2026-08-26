@@ -310,6 +310,15 @@ export class Player {
       }
     }
 
+    // --- Fossils (persistent discoveries, re-collectable for score) ---
+    for (const f of level.fossils) {
+      if (f.collected) continue;
+      if (overlap(this.rect, f.rect)) {
+        f.collected = true;
+        this.game.collectFossil(f.x, f.y, f.id);
+      }
+    }
+
     // --- Enemies: stomp from above, hurt from the side ---
     for (const e of level.enemies) {
       if (e.dead) continue;

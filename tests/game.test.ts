@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Game } from '../src/game';
-import { LEVEL_DATA } from '../src/level-data';
-import { Store, getGhostEnabled, type GameStats } from '../src/store';
+import { LEVEL_DATA, LEVELS } from '../src/level-data';
+import { Store, getGhostEnabled, getFoundFossils, type GameStats } from '../src/store';
 
 function makeGame(): Game {
   const canvas = document.createElement('canvas');
@@ -313,5 +313,62 @@ describe('Ghost race', () => {
     game.victoryT = 2;
     game.handleKey('primary');
     expect((game as unknown as { ghost: unknown }).ghost).toBeNull();
+  });
+});
+
+describe('Fossil discoveries', () => {
+  let game: Game;
+
+  beforeEach(() => {
+    localStorage.clear();
+    game = makeGame();
+  });
+
+  it('counts every hidden fossil for the HUD and menu', () => {
+    expect(game.totalFossils()).toBe(
+      LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0),
+    );
+    expect(game.totalFossils()).toBe(9);
+  });
+
+  it('awards score on pickup and persists the first discovery', () => {
+    game.handleKey('primary');
+    const f = game.level!.fossils[0];
+    expect(f.id).toBe('0:0');
+    game.collectFossil(f.x, f.y, f.id);
+    expect(game.score).toBe(150);
+    expect(game.fossilsFound).toContain('0:0');
+    expect(getFoundFossils()).toContain('0:0');
+    expect(Store.get<string[] | null>('tinyrex_fossils', null)).toContain('0:0');
+  });
+
+  it('pays score on re-collection but records the discovery once', () => {
+    game.handleKey('primary');
+    game.collectFossil(0, 0, '0:1');
+    game.collectFossil(0, 0, '0:1');
+    expect(game.score).toBe(300);
+    expect(game.fossilsFound.filter((id) => id === '0:1')).toHaveLength(1);
+    expect(getFoundFossils()).toEqual(['0:1']);
+  });
+
+  it('collects fossils through player collisions during play', () => {
+    game.handleKey('primary');
+    const f = game.level!.fossils[0]; // (3255, 163) on the stone ledge {3220, 200, 130}
+    // Land the player standing on the ledge, overlapping the fossil.
+    game.player!.x = 3245;
+    game.player!.y = 200 - game.player!.h;
+    game.player!.vx = 0;
+    game.player!.vy = 0;
+    game.update(0.05);
+    expect(f.collected).toBe(true);
+    expect(game.score).toBeGreaterThanOrEqual(150);
+  });
+
+  it('re-collects fossils after a respawn reset', () => {
+    game.handleKey('primary');
+    const f = game.level!.fossils[0];
+    f.collected = true;
+    game.level!.reset();
+    expect(f.collected).toBe(false);
   });
 });

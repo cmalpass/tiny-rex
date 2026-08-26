@@ -75,6 +75,23 @@ export function saveGhostTrack(idx: number, track: GhostTrack): void {
   Store.set(key, track);
 }
 
+/**
+ * Found fossil ids ("<levelIdx>:<i>"), persistent across runs. A fossil can
+ * be re-collected for score on later runs, but only the first discovery
+ * counts toward the codex.
+ */
+export function getFoundFossils(): string[] {
+  const v = Store.get<string[] | null>('tinyrex_fossils', null);
+  return Array.isArray(v) ? v : [];
+}
+
+/** Record a fossil discovery; no-op when it is already in the codex. */
+export function findFossil(id: string): void {
+  const found = getFoundFossils();
+  if (found.includes(id)) return;
+  Store.set('tinyrex_fossils', [...found, id]);
+}
+
 /** Safe localStorage wrapper (settings + best records). */
 export const Store = {
   get<T>(key: string, fallback: T): T {

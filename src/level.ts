@@ -13,6 +13,7 @@ import { SpringPad } from './spring';
 import { PressurePlate } from './plate';
 import { Door } from './door';
 import { Projectile } from './projectile';
+import { Fossil } from './fossil';
 
 export class Level {
   width: number;
@@ -33,12 +34,14 @@ export class Level {
   plates: PressurePlate[];
   doors: Door[];
   projectiles: Projectile[];
+  fossils: Fossil[];
   readonly game: GameCtx;
 
-  constructor(d: LevelDef, game: GameCtx, enemySpeed = 1) {
+  constructor(d: LevelDef, game: GameCtx, enemySpeed = 1, levelIdx = 0) {
     this.width = d.width;
     this.enemySpeed = enemySpeed;
     this.game = game;
+    this.fossils = (d.fossils ?? []).map((f, i) => new Fossil(f.x, f.y, levelIdx + ':' + i));
     this.springs = (d.springs ?? []).map((s) => new SpringPad(s.x, s.y));
     this.plates = (d.plates ?? []).map((p) => new PressurePlate(p.x, p.y, game));
     this.doors = (d.doors ?? []).map((dr) => new Door(dr.x, dr.y, dr.w, dr.h, game));
@@ -114,6 +117,7 @@ export class Level {
     this.projectiles = [];
     for (const c of this.crystals) c.collected = false;
     for (const h of this.hearts) h.collected = false;
+    for (const f of this.fossils) f.collected = false;
     for (const e of this.enemies) e.reset();
     // Restore each hazard's own interval (the original hard-coded 2.2,
     // clobbering hazards configured with a different one).
