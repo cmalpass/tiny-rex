@@ -2,6 +2,39 @@ import { TAU } from './config';
 import type { Enemy } from './enemy';
 import type { PlayerState } from './player';
 
+/** Rex skin palettes. Mint unlocks after finding 3 hidden fossils. */
+export type RexSkinId = 'classic' | 'ember' | 'glacier' | 'mint';
+
+export interface RexSkin {
+  id: RexSkinId;
+  name: string;
+  /** Main body / tail / head color. */
+  body: string;
+  /** Legs, arms, head spikes. */
+  dark: string;
+  /** Belly. */
+  belly: string;
+  /** Nostril, smile, eyes. */
+  line: string;
+}
+
+export const SKINS: RexSkin[] = [
+  { id: 'classic', name: 'Classic', body: '#59b25f', dark: '#4c9d52', belly: '#f7ecd4', line: '#2f6e36' },
+  { id: 'ember', name: 'Ember', body: '#ef8a4c', dark: '#d9672c', belly: '#ffe9cf', line: '#8a3d16' },
+  { id: 'glacier', name: 'Glacier', body: '#7cc4e8', dark: '#55a3d4', belly: '#eaf7ff', line: '#2b6e94' },
+  { id: 'mint', name: 'Mint', body: '#63e0a8', dark: '#3ecf96', belly: '#eafff5', line: '#1e7a58' },
+];
+
+/** Resolve an arbitrary stored id to a known skin (fallback: Classic). */
+export function getSkin(id?: string): RexSkin {
+  return SKINS.find((s) => s.id === id) ?? SKINS[0];
+}
+
+/** Mint is the fossil reward; every other skin is free. */
+export function skinUnlocked(id: string, fossilsFound: string[]): boolean {
+  return id !== 'mint' || fossilsFound.length >= 3;
+}
+
 /** The state fields Sprite.drawRex reads (Player satisfies this structurally). */
 export interface RexView {
   x: number;
@@ -18,8 +51,10 @@ export interface RexView {
   dead: boolean;
   /** Death-tumble rotation (radians); 0 outside the dead state. */
   rot: number;
-  /** Konami code: cycle body colors through the rainbow. */
+  /** Konami code: cycle body colors through the rainbow (overrides skin). */
   rainbow?: boolean;
+  /** Cosmetic skin id (see SKINS); defaults to Classic. */
+  skin?: string;
 }
 
 /** Procedural character & enemy art. */
@@ -43,10 +78,13 @@ export const Sprite = {
     const legB = run ? Math.sin(phase + Math.PI) * 7 : 0;
     const tailWag = run ? Math.sin(phase * 1.5) * 4 : Math.sin(t * 2.4) * 2;
     const breathe = 1 + Math.sin(t * 3) * 0.02;
-    // Rainbow Rex (Konami): hue-cycle the body, keep the cream belly.
+    // Rainbow Rex (Konami) overrides any skin: hue-cycle the body.
+    const skin = getSkin(p.skin);
     const hue = (t * 160) % 360;
-    const bodyC = p.rainbow ? `hsl(${hue.toFixed(0)}, 78%, 55%)` : '#59b25f';
-    const darkC = p.rainbow ? `hsl(${((hue + 160) % 360).toFixed(0)}, 60%, 44%)` : '#4c9d52';
+    const bodyC = p.rainbow ? `hsl(${hue.toFixed(0)}, 78%, 55%)` : skin.body;
+    const darkC = p.rainbow ? `hsl(${((hue + 160) % 360).toFixed(0)}, 60%, 44%)` : skin.dark;
+    const bellyC = p.rainbow ? '#f7ecd4' : skin.belly;
+    const lineC = p.rainbow ? '#2f6e36' : skin.line;
 
     // Tail (behind body)
     ctx.fillStyle = bodyC;
@@ -71,7 +109,7 @@ export const Sprite = {
     ctx.ellipse(0, -20 + bob * 0.4, 15, 13 * breathe, 0, 0, TAU);
     ctx.fill();
     // Cream belly
-    ctx.fillStyle = '#f7ecd4';
+    ctx.fillStyle = bellyC;
     ctx.beginPath();
     ctx.ellipse(3, -17 + bob * 0.4, 9, 8 * breathe, 0, 0, TAU);
     ctx.fill();
@@ -99,12 +137,12 @@ export const Sprite = {
     ctx.ellipse(12, hy + 4, 8.5, 6.5, 0, 0, TAU);
     ctx.fill();
     // Nostril
-    ctx.fillStyle = '#2f6e36';
+    ctx.fillStyle = lineC;
     ctx.beginPath();
     ctx.arc(16, hy + 2, 1.2, 0, TAU);
     ctx.fill();
     // Smile
-    ctx.strokeStyle = '#2f6e36';
+    ctx.strokeStyle = lineC;
     ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.arc(11, hy + 5, 4.5, 0.15 * Math.PI, 0.75 * Math.PI);
@@ -116,7 +154,7 @@ export const Sprite = {
     ctx.fill();
     if (dead) {
       // X eyes
-      ctx.strokeStyle = '#2f6e36';
+      ctx.strokeStyle = lineC;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(2.5, hy - 6);
@@ -125,13 +163,13 @@ export const Sprite = {
       ctx.lineTo(2.5, hy - 1);
       ctx.stroke();
     } else if (p.state === 'hurt') {
-      ctx.fillStyle = '#2f6e36';
+      ctx.fillStyle = lineC;
       ctx.beginPath();
       ctx.arc(5.5, hy - 3, 2.2, 0, TAU);
       ctx.fill();
     } else if (jump) {
       // wide eyes in the air
-      ctx.fillStyle = '#2f6e36';
+      ctx.fillStyle = lineC;
       ctx.beginPath();
       ctx.arc(6, hy - 3.5, 3.2, 0, TAU);
       ctx.fill();
@@ -140,7 +178,7 @@ export const Sprite = {
       ctx.arc(7, hy - 4.5, 1.1, 0, TAU);
       ctx.fill();
     } else {
-      ctx.fillStyle = '#2f6e36';
+      ctx.fillStyle = lineC;
       const lookY = p.vy < -50 ? -1 : 0;
       ctx.beginPath();
       ctx.arc(6, hy - 3 + lookY, 2.8, 0, TAU);

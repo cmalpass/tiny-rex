@@ -1,4 +1,6 @@
 export type GameKey =
+  | 'skinPrev'
+  | 'skinNext'
   | 'restart'
   | 'mute'
   | 'reducedMotion'
@@ -57,6 +59,8 @@ export class Input {
       if (e.code === 'KeyM') this.onGameKey?.('mute');
       if (e.code === 'KeyV') this.onGameKey?.('reducedMotion');
       if (e.code === 'KeyG') this.onGameKey?.('ghost');
+      if (e.code === 'BracketLeft') this.onGameKey?.('skinPrev');
+      if (e.code === 'BracketRight') this.onGameKey?.('skinNext');
       if (e.code === 'F2') {
         e.preventDefault();
         this.onGameKey?.('debug');
