@@ -443,6 +443,13 @@ export class AudioManager {
         this.tone({ freq: 659, dur: 0.12, type: 'triangle', vol: 0.18, delay: 0.06 });
         this.tone({ freq: 880, dur: 0.18, type: 'sine', vol: 0.16, delay: 0.16 });
         break;
+      case 'personalBest':
+        // Rising triumphant arpeggio with a sparkle on top.
+        this.tone({ freq: 523, dur: 0.1, type: 'triangle', vol: 0.2 });
+        this.tone({ freq: 659, dur: 0.1, type: 'triangle', vol: 0.2, delay: 0.09 });
+        this.tone({ freq: 784, dur: 0.14, type: 'triangle', vol: 0.22, delay: 0.18 });
+        this.tone({ freq: 1046, dur: 0.26, type: 'sine', vol: 0.16, delay: 0.28 });
+        break;
     }
   }
 

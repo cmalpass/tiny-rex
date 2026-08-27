@@ -1,3 +1,4 @@
+import type { Difficulty } from './config';
 import type { GhostTrack } from './ghost';
 import { MIN_TRACK_POINTS } from './ghost';
 import { SKINS } from './sprite';
@@ -110,6 +111,44 @@ export function findNote(id: string): void {
   const found = getFoundNotes();
   if (found.includes(id)) return;
   Store.set('tinyrex_notes', [...found, id]);
+}
+
+/** One finished run, kept in the Hall of Claws leaderboard. */
+export interface RunRecord {
+  score: number;
+  /** Run time in seconds, or null when untracked. */
+  time: number | null;
+  /** Display name of the level (e.g. "Crystal Valley" or "Daily · Aug 26"). */
+  level: string;
+  difficulty: Difficulty;
+  /** Epoch ms when the run finished. */
+  date: number;
+}
+
+/** Number of runs the Hall of Claws keeps (newest kept, oldest dropped). */
+export const MAX_RUNS = 100;
+
+/** All recorded runs, newest first; corrupt storage reads as empty. */
+export function getRuns(): RunRecord[] {
+  const v = Store.get<RunRecord[] | null>('tinyrex_runs', null);
+  if (!Array.isArray(v)) return [];
+  return v.filter((r) => r && typeof r.score === 'number' && typeof r.level === 'string');
+}
+
+/** Append a finished run to the hall, keeping the newest MAX_RUNS. */
+export function addRun(r: RunRecord): void {
+  Store.set('tinyrex_runs', [r, ...getRuns()].slice(0, MAX_RUNS));
+}
+
+/** The top n runs by score (ties broken by shorter time). */
+export function topRuns(n: number): RunRecord[] {
+  return [...getRuns()]
+    .sort((a, b) => b.score - a.score || (a.time ?? 1e9) - (b.time ?? 1e9))
+    .slice(0, n);
+}
+
+export function clearRuns(): void {
+  Store.set('tinyrex_runs', []);
 }
 
 /** Selected Rex skin id; unknown/corrupt values fall back to Classic. */
