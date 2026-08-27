@@ -46,6 +46,12 @@ export class Level {
   boss: MagmaKing | null;
   /** Power-up capsules dropped by stomped enemies. */
   powerups: PowerUp[];
+  /** Rising-tide config (null on levels without a tide). */
+  tide: { fromY: number; toY: number; rate: number } | null;
+  /** Current waterline y (Infinity when the level has no tide). */
+  waterY: number;
+  /** One-shot "the tide is rising" ping. */
+  tideWarned: boolean;
   readonly game: GameCtx;
 
   constructor(d: LevelDef, game: GameCtx, enemySpeed = 1, levelIdx = 0) {
@@ -86,6 +92,9 @@ export class Level {
       ? new MagmaKing(d.boss, this, enemySpeed, d.orbs ?? [])
       : null;
     this.powerups = [];
+    this.tide = d.tide ?? null;
+    this.waterY = this.tide ? this.tide.fromY : Infinity;
+    this.tideWarned = false;
   }
 
   /** Spawn a power-up capsule (enemy-kill drop). */
@@ -168,5 +177,7 @@ export class Level {
       cp.active = false;
       cp.pulse = 0;
     }
+    if (this.tide) this.waterY = this.tide.fromY;
+    this.tideWarned = false;
   }
 }

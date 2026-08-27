@@ -330,7 +330,7 @@ describe('Fossil discoveries', () => {
     expect(game.totalFossils()).toBe(
       LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0),
     );
-    expect(game.totalFossils()).toBe(12);
+    expect(game.totalFossils()).toBe(15);
   });
 
   it('awards score on pickup and persists the first discovery', () => {

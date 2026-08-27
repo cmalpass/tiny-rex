@@ -82,9 +82,14 @@ export interface LevelDef {
   boss?: { x: number; y: number; minX: number; maxX: number };
   /** Stompable crystal orbs that stun the boss (boss arenas only). */
   orbs?: Point[];
+  /**
+   * Rising tide: the waterline climbs from `fromY` to `toY` at `rate` px/s
+   * while the run is live. Standing in the water damages the player.
+   */
+  tide?: { fromY: number; toY: number; rate: number };
 }
 
-export type LevelTheme = 'meadow' | 'volcanic' | 'frost';
+export type LevelTheme = 'meadow' | 'volcanic' | 'frost' | 'dusk';
 
 export interface LevelInfo {
   id: number;
@@ -576,11 +581,148 @@ const LEVEL_4: LevelDef = {
   ],
 };
 
+// Duskfen — Level 5. A drowned valley at twilight: the tide creeps in from
+// the first second and, by the end of the run, has submerged the low ground
+// (tops at 460) entirely. Safe route: keep to the canopy and elevated ledges
+// (tops <= 446), which the waterline never reaches.
+const LEVEL_5: LevelDef = {
+  width: 7600,
+  startX: 120,
+  startY: 414,
+  startGroundY: 460,
+  tide: { fromY: 520, toY: 452, rate: 0.5 },
+  platforms: [
+    // ---- Section A: the fen's edge — dry intro (teach move + jump) ----
+    { x: 0, y: 460, w: 1500, h: 120, type: 'ground' },
+    { x: 320, y: 372, w: 130, h: 24, type: 'wood' },
+    { x: 520, y: 300, w: 130, h: 24, type: 'wood' },
+    { x: 760, y: 372, w: 130, h: 24, type: 'wood' },
+    // ---- Section B: beetle bog — lowland with a water pit ----
+    { x: 1500, y: 460, w: 520, h: 120, type: 'ground' },
+    { x: 2140, y: 460, w: 1060, h: 120, type: 'ground' },
+    { x: 2045, y: 398, w: 90, h: 24, type: 'wood' }, // step over the pit
+    { x: 1780, y: 318, w: 120, h: 24, type: 'stone' }, // high fossil ledge
+    { x: 1900, y: 420, w: 90, h: 24, type: 'wood' }, // dry hop (late-tide safe)
+    { x: 2400, y: 420, w: 90, h: 24, type: 'wood' }, // dry hop
+    { x: 2800, y: 420, w: 90, h: 24, type: 'wood' }, // dry hop
+    // ---- Section C: the canopy — elevated route (always dry) ----
+    { x: 3200, y: 460, w: 1400, h: 120, type: 'ground' },
+    { x: 3300, y: 398, w: 140, h: 24, type: 'wood' },
+    { x: 3540, y: 344, w: 140, h: 24, type: 'wood' },
+    { x: 3790, y: 290, w: 150, h: 24, type: 'wood' }, // crown of the canopy
+    { x: 4050, y: 344, w: 140, h: 24, type: 'wood' },
+    { x: 4290, y: 398, w: 140, h: 24, type: 'wood' },
+    // ---- Section D: flooded lowland — bridge, plate & door ----
+    { x: 4600, y: 460, w: 600, h: 120, type: 'ground' },
+    { x: 5560, y: 460, w: 1440, h: 120, type: 'ground' },
+    { x: 4700, y: 420, w: 100, h: 24, type: 'wood' }, // dry hop
+    { x: 4950, y: 420, w: 100, h: 24, type: 'wood' }, // plate ledge (dry hop)
+    { x: 5230, y: 430, w: 80, h: 20, type: 'crumble' }, // the crumble bridge
+    { x: 5350, y: 430, w: 80, h: 20, type: 'crumble' },
+    { x: 5470, y: 430, w: 90, h: 20, type: 'crumble' },
+    { x: 5300, y: 330, w: 110, h: 24, type: 'stone' }, // fossil perch over the gap
+    // ---- Section E: the drowned vale — dry hops to the spring & nest rock ----
+    { x: 7140, y: 460, w: 460, h: 120, type: 'ground' },
+    { x: 6200, y: 420, w: 110, h: 24, type: 'wood' }, // dry hop
+    { x: 6500, y: 420, w: 110, h: 24, type: 'wood' }, // dry hop
+    { x: 6800, y: 420, w: 110, h: 24, type: 'wood' }, // dry hop
+    { x: 7200, y: 340, w: 160, h: 24, type: 'stone' }, // the nest rock (goal)
+  ],
+  springs: [
+    { x: 3255, y: 460 }, // up into the canopy
+    { x: 6950, y: 460 }, // the final launch onto the nest rock
+  ],
+  plates: [
+    { x: 4980, y: 420, door: 0 },
+  ],
+  doors: [
+    { x: 5150, y: 310, w: 40, h: 150 }, // the sunken gate
+  ],
+  crystals: [
+    // Section A
+    { x: 190, y: 425 }, { x: 260, y: 425 },
+    { x: 385, y: 335 }, { x: 585, y: 263 }, { x: 825, y: 335 },
+    { x: 1100, y: 425 }, { x: 1240, y: 425 }, { x: 1380, y: 425 },
+    // Section B
+    { x: 1560, y: 425 }, { x: 1660, y: 425 },
+    { x: 1840, y: 282 }, // high ledge
+    { x: 2090, y: 362 }, // pit arc
+    { x: 2300, y: 425 }, { x: 2430, y: 425 }, { x: 2600, y: 425 },
+    { x: 2870, y: 425 }, { x: 3050, y: 425 },
+    // Section C (canopy)
+    { x: 3350, y: 362 }, { x: 3590, y: 308 }, { x: 3860, y: 254 },
+    { x: 4100, y: 308 }, { x: 4340, y: 362 },
+    { x: 3400, y: 425 }, { x: 4000, y: 425 }, { x: 4230, y: 425 },
+    // Section D
+    { x: 4680, y: 425 }, { x: 4800, y: 384 }, { x: 5000, y: 384 },
+    { x: 5250, y: 393 }, { x: 5370, y: 393 }, { x: 5490, y: 393 }, // bridge
+    { x: 5620, y: 425 }, { x: 5850, y: 425 },
+    // Section E
+    { x: 6100, y: 425 }, { x: 6300, y: 384 }, { x: 6500, y: 384 },
+    { x: 6700, y: 425 }, { x: 6900, y: 425 },
+    { x: 7050, y: 340 }, { x: 7160, y: 300 }, // spring flight
+    { x: 7280, y: 304 }, { x: 7380, y: 304 }, // on the nest rock
+  ],
+  hazards: [
+    { type: 'lava', x: 2020, y: 520, w: 120 }, // the bog pit (the tide will drown it)
+    { type: 'spikes', x: 5750, y: 460, w: 70 }, // sunken teeth on the low ground
+  ],
+  checkpoints: [
+    { x: 1520, y: 460 }, // the bog
+    { x: 4230, y: 460 }, // under the canopy crown
+    { x: 6050, y: 460 }, // the drowned vale
+  ],
+  enemies: [
+    { type: 'beetle', x: 2500, y: 432, minX: 2350, maxX: 2900 },
+    { type: 'ptero', x: 3700, y: 240, range: 140 },
+    { type: 'spitter', x: 4080, y: 306 },
+    { type: 'ptero', x: 4350, y: 250, range: 120 },
+    { type: 'trike', x: 5700, y: 424, minX: 5600, maxX: 6000 },
+    { type: 'beetle', x: 6300, y: 432, minX: 6150, maxX: 6600 },
+    { type: 'ptero', x: 6600, y: 240, range: 130 },
+  ],
+  hearts: [
+    { x: 2700, y: 428 }, // the bog
+    { x: 3990, y: 425 }, // under the canopy
+    { x: 5620, y: 425 }, // past the crumble bridge
+    { x: 6900, y: 425 }, // by the final spring
+    { x: 7240, y: 306 }, // on the nest rock
+  ],
+  fossils: [
+    { x: 1842, y: 294 }, // high ledge in the bog
+    { x: 3855, y: 256 }, // crown of the canopy
+    { x: 5345, y: 306 }, // perch over the sunken gate
+  ],
+  notes: [
+    { x: 2210, y: 436 }, // the bog
+    { x: 3560, y: 310 }, // mid-canopy
+    { x: 7350, y: 428 }, // on the nest ground
+  ],
+  goal: { x: 7280, y: 340 },
+  decor: [
+    { type: 'sign', x: 120 },
+    { type: 'tree', x: 220, s: 1.1 }, { type: 'flower', x: 420, color: '#c9a0ff' },
+    { type: 'tuft', x: 650 }, { type: 'tree', x: 900, s: 0.95 },
+    { type: 'crystalrock', x: 1150, s: 1.0 }, { type: 'tuft', x: 1400 },
+    { type: 'tuft', x: 1550 }, { type: 'tree', x: 1950, s: 1.05 }, { type: 'bush', x: 2180 },
+    { type: 'tuft', x: 2350 }, { type: 'bush', x: 2650 }, { type: 'tuft', x: 2950 },
+    { type: 'flower', x: 3100, color: '#ff8fa3' }, { type: 'tree', x: 3450, s: 1.2 },
+    { type: 'tuft', x: 3650 }, { type: 'tree', x: 3950, s: 1.1 }, { type: 'tuft', x: 4150 },
+    { type: 'bush', x: 4400 }, { type: 'tuft', x: 4550 }, { type: 'rock', x: 4680 },
+    { type: 'tuft', x: 4880 }, { type: 'bush', x: 5100 }, { type: 'tuft', x: 5420 },
+    { type: 'rock', x: 5520 }, { type: 'tuft', x: 5700 }, { type: 'tree', x: 5950, s: 1.05 },
+    { type: 'tuft', x: 6150 }, { type: 'bush', x: 6400 }, { type: 'tuft', x: 6650 },
+    { type: 'rock', x: 6850 }, { type: 'tuft', x: 7050 }, { type: 'crystalrock', x: 7450, s: 1.15 },
+    { type: 'tuft', x: 7520 },
+  ],
+};
+
 export const LEVELS: LevelInfo[] = [
   { id: 0, name: 'Crystal Valley', subtitle: 'CRYSTAL VALLEY', theme: 'meadow', def: LEVEL_1 },
   { id: 1, name: 'Volcanic Depths', subtitle: 'VOLCANIC DEPTHS', theme: 'volcanic', def: LEVEL_2 },
   { id: 2, name: 'Frostpeak Pass', subtitle: 'FROSTPEAK PASS', theme: 'frost', def: LEVEL_3 },
   { id: 3, name: 'Molten Nest', subtitle: 'MOLTEN NEST', theme: 'volcanic', def: LEVEL_4 },
+  { id: 4, name: 'Duskfen', subtitle: 'DUSKFEN', theme: 'dusk', def: LEVEL_5 },
 ];
 
 /** Backward-compatible handle for the original level (Crystal Valley). */

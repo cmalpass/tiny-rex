@@ -82,11 +82,15 @@ export class Background {
       skyTop: '#7fb5e6', skyMid: '#bfe0f5', skyBot: '#eef7fc',
       mtn: '#9db8d6', hill: '#cfe3f0',
     },
+    dusk: {
+      skyTop: '#241d4a', skyMid: '#5d4478', skyBot: '#e08a5a',
+      mtn: '#332a54', hill: '#443562',
+    },
   } as const;
 
   draw(ctx: CanvasRenderingContext2D, camX: number, t: number): void {
     const P = Background.PALETTES[this.theme];
-    const night = this.theme === 'volcanic';
+    const night = this.theme === 'volcanic' || this.theme === 'dusk';
     const frost = this.theme === 'frost';
 
     // Sky
@@ -146,8 +150,14 @@ export class Background {
       ctx.lineTo(px + m.w, 420);
       ctx.closePath();
       ctx.fill();
-      // Snow cap (day) / faint ember rim (night) / bright cap (frost)
-      ctx.fillStyle = night ? 'rgba(255,140,60,0.28)' : frost ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.75)';
+      // Snow cap (day) / ember rim (volcanic) / warm rim (dusk) / bright cap (frost)
+      ctx.fillStyle = this.theme === 'volcanic'
+        ? 'rgba(255,140,60,0.28)'
+        : this.theme === 'dusk'
+          ? 'rgba(255,170,110,0.3)'
+          : frost
+            ? 'rgba(255,255,255,0.95)'
+            : 'rgba(255,255,255,0.75)';
       ctx.beginPath();
       ctx.moveTo(px + m.w * m.peak, 420 - m.h);
       ctx.lineTo(px + m.w * m.peak - m.w * 0.09, 420 - m.h + 26);
@@ -160,11 +170,19 @@ export class Background {
     for (const c of this.clouds) {
       const cx = ((c.x + t * c.drift - camX * 0.2) % 5200 + 5200) % 5200 - 200;
       if (cx < -160 || cx > VW + 160) continue;
-      if (night) {
+      if (night && this.theme === 'volcanic') {
         const a = 0.4 + 0.3 * Math.sin(t * 2 + c.x);
         ctx.fillStyle = `rgba(255,128,54,${a.toFixed(2)})`;
         ctx.beginPath();
         ctx.arc(cx, c.y + Math.sin(t * 0.8 + c.x) * 6, 2.2 * c.s, 0, TAU);
+        ctx.fill();
+      } else if (this.theme === 'dusk') {
+        // Twilight clouds: soft purple slivers catching the last light
+        const a = 0.25 + 0.15 * Math.sin(t * 0.6 + c.x);
+        ctx.fillStyle = `rgba(226,150,120,${a.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.ellipse(cx, c.y + 40 * c.s, 52 * c.s, 7 * c.s, 0, 0, TAU);
+        ctx.ellipse(cx + 34 * c.s, c.y + 36 * c.s, 30 * c.s, 5 * c.s, 0, 0, TAU);
         ctx.fill();
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.92)';
@@ -270,7 +288,7 @@ export class Background {
   private drawVolcano(ctx: CanvasRenderingContext2D, off: number, worldX: number, t: number, scale: number): void {
     const x = worldX - off;
     if (x < -400 || x > VW + 400) return;
-    const night = this.theme === 'volcanic';
+    const night = this.theme === 'volcanic' || this.theme === 'dusk';
     ctx.fillStyle = night ? '#241830' : '#b0826a';
     ctx.beginPath();
     ctx.moveTo(x - 170 * scale, 520);
@@ -279,8 +297,8 @@ export class Background {
     ctx.lineTo(x + 170 * scale, 520);
     ctx.closePath();
     ctx.fill();
-    // lava streak (brighter when the volcano theme is active)
-    ctx.strokeStyle = night ? '#ff8a3c' : '#e0703a';
+    // lava streak (bright when active, dimmed as the volcano cools at dusk)
+    ctx.strokeStyle = this.theme === 'volcanic' ? '#ff8a3c' : night ? '#c25a2e' : '#e0703a';
     ctx.lineWidth = (night ? 6 : 5) * scale;
     ctx.beginPath();
     ctx.moveTo(x - 12 * scale, 255 - 40 * scale);

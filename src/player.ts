@@ -9,7 +9,7 @@ import { rollDrop } from './powerup';
 import type { PowerUpType } from './powerup';
 
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'hurt' | 'dead' | 'victory';
-export type DamageKind = 'spikes' | 'lava' | 'enemy' | 'rock' | 'pit' | 'spit';
+export type DamageKind = 'spikes' | 'lava' | 'enemy' | 'rock' | 'pit' | 'spit' | 'tide';
 
 /** Haptic pulse where supported (mobile vibration + gamepad rumble); silent no-op elsewhere. */
 function vibrate(pattern: number | number[]): void {
@@ -331,6 +331,12 @@ export class Player {
       }
     }
 
+    // --- Rising tide (Duskfen): submersion past the waterline damages ---
+    if (level.tide && this.invulnT <= 0 && this.rect.y + this.rect.h > level.waterY + 6) {
+      this.damage({ x: this.x, w: this.w }, 'tide');
+      if (!this.dead) this.vy = -P.tideBounce; // splash back up
+    }
+
     // --- Crystals (the Magnet power-up pulls them in first) ---
     for (const c of level.crystals) {
       if (c.collected) continue;
@@ -480,7 +486,11 @@ export class Player {
     this.game.audio.play('hurt');
     this.game.addShake(6);
     vibrate([60, 40, 60]);
-    this.game.burst(this.x + this.w / 2, this.y + this.h / 2, 10, ['#ff8a5c', '#ffd257'], 'dot', 180);
+    if (kind === 'tide') {
+      this.game.burst(this.x + this.w / 2, this.y + this.h / 2, 20, ['#8fd0ff', '#fff', '#4a90d9'], 'dot', 200);
+    } else {
+      this.game.burst(this.x + this.w / 2, this.y + this.h / 2, 10, ['#ff8a5c', '#ffd257'], 'dot', 180);
+    }
     if (this.hearts <= 0) {
       this.die(kind);
       return;
@@ -488,9 +498,14 @@ export class Player {
     // Knockback away from the source (every caller passes x/w)
     const cx = this.x + this.w / 2;
     let dir = cx < source.x + source.w / 2 ? -1 : 1;
-    if (kind === 'lava') dir = 0;
+    if (kind === 'lava' || kind === 'tide') dir = 0;
     this.vx = dir * CFG.player.knockX;
-    this.vy = kind === 'lava' ? -CFG.player.lavaBounce : -CFG.player.knockY;
+    this.vy =
+      kind === 'lava'
+        ? -CFG.player.lavaBounce
+        : kind === 'tide'
+          ? -CFG.player.tideBounce
+          : -CFG.player.knockY;
     const msgs: Record<DamageKind, string> = {
       spikes: 'Ouch!',
       lava: 'Sizzling!',
@@ -498,8 +513,10 @@ export class Player {
       rock: 'Bonked!',
       pit: 'Whoa!',
       spit: 'Yuck!',
+      tide: 'Splash!',
     };
-    this.game.addStatus(msgs[kind], '#ff9d7a');
+    const splash = kind === 'tide';
+    this.game.addStatus(msgs[kind], splash ? '#8fd0ff' : '#ff9d7a');
   }
 
   die(kind: DamageKind): void {

@@ -8,7 +8,7 @@ export interface NoteEntry {
 }
 
 /**
- * The dino-archaeologist's field notes: 3 per hand-built level (12 total).
+ * The dino-archaeologist's field notes: 3 per hand-built level (15 total).
  * Discovered in the world, read on the menu codex screen.
  */
 export const NOTES: NoteEntry[][] = [
@@ -82,6 +82,24 @@ export const NOTES: NoteEntry[][] = [
       title: 'Day 35 — The empty nest',
       text: 'After the last battle the nest was not empty. Under the ash lay a single warm egg. I am leaving it here, guarded. Some things are too big for a journal, so I am writing it down anyway.',
       hint: 'Behind the gate, near the nest',
+    },
+  ],
+  // Duskfen
+  [
+    {
+      title: 'Day 38 — The waterline',
+      text: 'The fen is not a swamp. It is a flooded floor. The water rises on a clock — I timed it, a finger-width every long while — and when the last low ground goes under, only the canopy keeps its promises. Whatever is down there, it is patient. It does not chase. It simply waits to be whole water.',
+      hint: 'Just past the first flag',
+    },
+    {
+      title: 'Day 40 — Fireflies with a job',
+      text: 'Every firefly in Duskfen blinks on the same beat, three slow pulses, then dark. I counted a hundred of them keeping time in the dark. They are not insects here. They are lanterns, left burning for someone coming home.',
+      hint: 'Walk the middle of the canopy',
+    },
+    {
+      title: 'Day 42 — The silent fen',
+      text: 'I reached the nest rock while the last of the water was still climbing the reeds. No wind, no wings, no water sound at all — the fen just stopped, the way a held breath stops. The egg in the nest was warm. I am going home. Some things are better guarded than explained.',
+      hint: 'On the nest ground, by the goal',
     },
   ],
 ];
