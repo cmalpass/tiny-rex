@@ -4,6 +4,9 @@ import type { Input } from './input';
 import type { Level } from './level';
 import type { Platform } from './platform';
 import type { GameCtx } from './ctx';
+import type { Crystal } from './crystal';
+import { rollDrop } from './powerup';
+import type { PowerUpType } from './powerup';
 
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'hurt' | 'dead' | 'victory';
 export type DamageKind = 'spikes' | 'lava' | 'enemy' | 'rock' | 'pit' | 'spit';
@@ -64,6 +67,13 @@ export class Player {
   rainbow = false;
   /** Cosmetic skin id (see SKINS in sprite.ts); set by the Game. */
   skin = 'classic';
+  /** Power-up timers: seconds of remaining effect (0 = inactive). */
+  magnetT = 0;
+  doubleJumpT = 0;
+  /** One-hit bubble shield from a Bubble capsule. */
+  bubble = false;
+  /** Air jumps left this flight (double-jump power-up). */
+  airJumps = 0;
   private readonly game: GameCtx;
 
   constructor(x: number, y: number, game: GameCtx) {
@@ -94,6 +104,10 @@ export class Player {
     this.hurtT = 0;
     this.walkDustT = 0;
     this.jumpCutPending = false;
+    this.magnetT = 0;
+    this.doubleJumpT = 0;
+    this.bubble = false;
+    this.airJumps = 0;
   }
 
   get feet(): number {
@@ -140,6 +154,8 @@ export class Player {
 
     this.hurtT = Math.max(0, this.hurtT - dt);
     this.invulnT = Math.max(0, this.invulnT - dt);
+    this.magnetT = Math.max(0, this.magnetT - dt);
+    this.doubleJumpT = Math.max(0, this.doubleJumpT - dt);
     this.landT = Math.max(0, this.landT - dt);
     // Ease squash & stretch back to neutral
     this.squashX = lerp(this.squashX, 1, dt * 12);
@@ -176,6 +192,25 @@ export class Player {
       this.squashY = 1.25;
       this.jumpCutPending = true;
       this.game.burst(this.x + this.w / 2, this.feet, 5, ['#e8dcc8'], 'dust', 90);
+      this.game.audio.play('jump');
+    }
+    // Double-jump power-up: one extra mid-air jump per flight. Re-reads
+    // the buffer (a ground jump this frame already consumed it).
+    if (
+      input.jumpBufferT >= 0 &&
+      t - input.jumpBufferT <= P.jumpBuffer &&
+      !this.grounded &&
+      this.coyoteT <= 0 &&
+      this.doubleJumpT > 0 &&
+      this.airJumps < 1
+    ) {
+      input.jumpBufferT = -1;
+      this.vy = -CFG.powerup.doubleJumpVel;
+      this.airJumps += 1;
+      this.squashX = 0.82;
+      this.squashY = 1.22;
+      this.jumpCutPending = true;
+      this.game.burst(this.x + this.w / 2, this.feet, 8, ['#8fd8ff', '#cfe8ff'], 'dot', 120);
       this.game.audio.play('jump');
     }
     // Variable jump height: releasing early cuts the ascent, but only once
@@ -249,6 +284,8 @@ export class Player {
         }
       }
     }
+    // Landing resets the air-jump allotment
+    if (this.grounded) this.airJumps = 0;
 
     // --- Spring pads: launch when falling (or walking) onto one ---
     for (const s of level.springs) {
@@ -294,9 +331,10 @@ export class Player {
       }
     }
 
-    // --- Crystals ---
+    // --- Crystals (the Magnet power-up pulls them in first) ---
     for (const c of level.crystals) {
       if (c.collected) continue;
+      if (this.magnetT > 0) this.attract(c, dt);
       if (overlap(this.rect, c.rect)) {
         c.collected = true;
         this.game.collectCrystal(c.x, c.y, c.bonus);
@@ -338,8 +376,19 @@ export class Player {
         this.game.audio.play('stomp');
         if (e.type === 'spitter') level.popProjectile(e.x + e.w / 2, e.y + e.h / 2);
         vibrate(30);
+        const drop = rollDrop();
+        if (drop) level.spawnPowerUp(drop, e.x + e.w / 2, e.y + e.h / 2);
       } else if (this.invulnT <= 0) {
         this.damage(e, 'enemy');
+      }
+    }
+
+    // --- Power-up capsules (enemy drops) ---
+    for (const pw of level.powerups) {
+      if (!pw.alive) continue;
+      if (overlap(this.rect, pw.rect)) {
+        pw.collected = true;
+        this.applyPowerup(pw.type, pw.x, pw.y);
       }
     }
 
@@ -359,6 +408,35 @@ export class Player {
     }
   }
 
+  /** Magnet power-up: pulls a nearby crystal toward Rex's centre. */
+  private attract(c: Crystal, dt: number): void {
+    const dx = this.x + this.w / 2 - c.x;
+    const dy = this.y + this.h / 2 - c.y;
+    const d = Math.hypot(dx, dy);
+    if (d > CFG.powerup.magnetRange || d < 1) return;
+    const step = CFG.powerup.magnetSpeed * dt;
+    c.x += (dx / d) * step;
+    c.y += (dy / d) * step;
+  }
+
+  /** Pick up a power-up capsule: applies the timed effect. */
+  applyPowerup(type: PowerUpType, x: number, y: number): void {
+    const P = CFG.powerup;
+    if (type === 'magnet') {
+      this.magnetT = P.magnetDur;
+      this.game.addStatus('Magnet!', '#ff9db0');
+    } else if (type === 'double') {
+      this.doubleJumpT = P.doubleJumpDur;
+      this.airJumps = 0;
+      this.game.addStatus('Double Jump!', '#8fd8ff');
+    } else {
+      this.bubble = true;
+      this.game.addStatus('Bubble Shield!', '#bff4ff');
+    }
+    this.game.audio.play('powerup');
+    this.game.burst(x, y, 14, ['#ffffff', '#cfe8ff', '#ffd257'], 'dot', 150);
+  }
+
   enemyColors(type: string): string[] {
     if (type === 'beetle') return ['#7a3b2e', '#5c2c22', '#c96f4a'];
     if (type === 'trike') return ['#7d97ad', '#5d7690', '#c3d3e0'];
@@ -374,6 +452,16 @@ export class Player {
       this.game.audio.play('hurt');
       this.game.burst(this.x + this.w / 2, this.y + this.h / 2, 8, ['#8fe3ff', '#fff'], 'dot', 160);
       this.game.addStatus('Invulnerable!', '#8fe3ff');
+      return;
+    }
+    if (this.bubble) {
+      // The bubble absorbs the hit: pop, brief grace, no heart lost.
+      this.bubble = false;
+      this.invulnT = CFG.player.invulnTime * 0.5;
+      this.hurtT = 0.25;
+      this.game.audio.play('bubblePop');
+      this.game.burst(this.x + this.w / 2, this.y + this.h / 2, 16, ['#bff4ff', '#8fe3ff', '#fff'], 'dot', 170);
+      this.game.addStatus('Bubble popped!', '#bff4ff');
       return;
     }
     this.hearts -= 1;

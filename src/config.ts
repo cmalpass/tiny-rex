@@ -52,6 +52,16 @@ export const CFG = {
   spitter: { range: 520, band: 150, fireCd: 1.8, projSpeed: 1.06, projGravity: 700 },
   /** Magma King: charge speed (px/s) and magma-glob fire speed. */
   boss: { chargeSpeed: 640, shootSpeed: 430 },
+  /** Enemy-kill power-up capsules: Magnet, Double Jump, Bubble shield. */
+  powerup: {
+    dropChance: 0.25, // share of stomped enemies that drop a capsule
+    magnetDur: 8, // seconds of crystal attraction
+    magnetRange: 150, // pickup radius of the magnet (px)
+    magnetSpeed: 520, // how fast attracted crystals home in (px/s)
+    doubleJumpDur: 15, // seconds of extra air jumps
+    doubleJumpVel: 600, // air-jump impulse (just under the ground jump)
+    expireT: 10, // seconds a dropped capsule waits before evaporating
+  },
 } as const;
 
 export const VW = CFG.view.w;

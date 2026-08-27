@@ -16,6 +16,8 @@ import { Projectile } from './projectile';
 import type { ProjectileKind } from './projectile';
 import { Fossil } from './fossil';
 import { MagmaKing } from './boss';
+import { PowerUp } from './powerup';
+import type { PowerUpType } from './powerup';
 
 export class Level {
   width: number;
@@ -39,6 +41,8 @@ export class Level {
   fossils: Fossil[];
   /** The Magma King (Molten Nest only). */
   boss: MagmaKing | null;
+  /** Power-up capsules dropped by stomped enemies. */
+  powerups: PowerUp[];
   readonly game: GameCtx;
 
   constructor(d: LevelDef, game: GameCtx, enemySpeed = 1, levelIdx = 0) {
@@ -77,6 +81,12 @@ export class Level {
     this.boss = d.boss
       ? new MagmaKing(d.boss, this, enemySpeed, d.orbs ?? [])
       : null;
+    this.powerups = [];
+  }
+
+  /** Spawn a power-up capsule (enemy-kill drop). */
+  spawnPowerUp(type: PowerUpType, x: number, y: number): void {
+    this.powerups.push(new PowerUp(type, x, y));
   }
 
   solidAt(x: number, y: number): boolean {
@@ -119,6 +129,16 @@ export class Level {
     this.boss?.update(dt, t, player);
     for (const pr of this.projectiles) pr.update(dt, this, player);
     this.projectiles = this.projectiles.filter((pr) => !pr.dead);
+    for (const pw of this.powerups) pw.update(dt);
+    this.powerups = this.powerups.filter((pw) => {
+      if (pw.collected) return false;
+      if (pw.life <= 0) {
+        // Left behind: evaporate with a small poof
+        this.game.burst(pw.x, pw.y, 6, ['#ffffff', '#cfe8ff'], 'dot', 90);
+        return false;
+      }
+      return true;
+    });
   }
 
   reset(): void {
@@ -126,6 +146,7 @@ export class Level {
     for (const s of this.springs) s.reset();
     for (const p of this.plates) p.reset();
     this.projectiles = [];
+    this.powerups = [];
     for (const c of this.crystals) c.collected = false;
     for (const h of this.hearts) h.collected = false;
     for (const f of this.fossils) f.collected = false;
