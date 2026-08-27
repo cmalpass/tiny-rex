@@ -1,8 +1,8 @@
 import { CFG, VW, VH, TAU, FONT_STACK, DIFFICULTIES, STARS } from './config';
 import type { Difficulty } from './config';
 import { clamp, easeOutBack, fmtTime } from './util';
-import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack, getFoundFossils, findFossil, getFoundNotes, findNote, getSkinId, setSkinId } from './store';
-import type { GameStats } from './store';
+import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack, getFoundFossils, findFossil, getFoundNotes, findNote, getSkinId, setSkinId, getRuns, addRun, topRuns, clearRuns } from './store';
+import type { GameStats, RunRecord } from './store';
 import { AudioManager } from './audio';
 import { Input } from './input';
 import type { GameKey } from './input';
@@ -143,7 +143,17 @@ export class Game implements GameCtx {
   /** Field-note ids discovered so far (persistent meta-progress). */
   notesFound: string[] = getFoundNotes();
   /** Menu sub-screen: the main menu or the field-notes codex. */
-  menuScreen: 'main' | 'codex' = 'main';
+  menuScreen: 'main' | 'codex' | 'hall' = 'main';
+  /** Hall of Claws: set when the "Clear hall" button is waiting for a second tap. */
+  hallClearArmed = false;
+  /** Set once per run when the score overtakes the stored best (PB burst fires once). */
+  pbAnnounced = false;
+  /** The best score at the start of the current run (PB baseline; best itself updates on victory). */
+  pbBaseline = 0;
+  /** The run just finished, so the victory panel can flag a Hall of Claws top-10 spot. */
+  lastRun: RunRecord | null = null;
+  /** Rank (1-based) of lastRun inside topRuns(10); null when it didn't place. */
+  lastRunRank: number | null = null;
   private ghost: GhostPlayer | null = null;
   private ghostRec: GhostRecorder | null = null;
   /** Cheat queue: apply max hearts once a player exists. */
@@ -361,6 +371,8 @@ export class Game implements GameCtx {
     this.checkpoint = null;
     this.results = null;
     this.victoryT = 0;
+    this.pbAnnounced = false;
+    this.pbBaseline = this.best.score;
     // Ghost race: record this run and replay the stored best alongside it
     this.ghostRec = new GhostRecorder();
     this.ghost = null;
@@ -454,8 +466,10 @@ export class Game implements GameCtx {
       this.cycleSkin(k === 'skinNext' ? 1 : -1);
       return;
     }
-    if (k === 'codex' && this.state === 'menu') {
-      this.menuScreen = this.menuScreen === 'codex' ? 'main' : 'codex';
+    if ((k === 'codex' || k === 'hall') && this.state === 'menu') {
+      const target = k === 'codex' ? 'codex' : 'hall';
+      this.menuScreen = this.menuScreen === target ? 'main' : target;
+      this.hallClearArmed = false;
       this.audio.play('ui');
       return;
     }
@@ -772,6 +786,21 @@ export class Game implements GameCtx {
         saveGhostTrack(this.daily ? -1 : this.levelIdx, track);
       }
     }
+    // Hall of Claws: carve this run into the local leaderboard
+    const hallRec: RunRecord = {
+      score: this.score,
+      time: this.elapsed,
+      level: this.daily ? 'Daily · ' + new Date().toLocaleDateString() : LEVELS[this.levelIdx].name,
+      difficulty: this.difficulty,
+      date: Date.now(),
+    };
+    addRun(hallRec);
+    // Object identity is lost through the localStorage round-trip, so match by content.
+    const rank = topRuns(10).findIndex(
+      (r) => r.score === hallRec.score && r.date === hallRec.date && r.level === hallRec.level,
+    );
+    this.lastRun = hallRec;
+    this.lastRunRank = rank >= 0 ? rank + 1 : null;
     // Lifetime stats
     const s = getStats();
     s.victories += 1;
@@ -842,6 +871,15 @@ export class Game implements GameCtx {
         this.star100Shown = true;
         this.addStatus('✦ Perfect run — every crystal!', '#ffe28a');
       }
+      // Hall of Claws: one-time celebration when this run overtakes the run-start best
+      if (!this.pbAnnounced && this.pbBaseline > 0 && this.score > this.pbBaseline) {
+        this.pbAnnounced = true;
+        const p = this.player!;
+        this.texts.push(new FloatingText(p.x + p.w / 2, p.y - 30, 'NEW PERSONAL BEST!', '#ffd257'));
+        this.addStatus('Personal best shattered!', '#ffd257');
+        this.burst(p.x + p.w / 2, p.y + p.h / 2, this.reducedMotion ? 10 : 36, ['#ffd257', '#fff', '#7ec8f2'], 'rect', 180);
+        this.audio.play('personalBest');
+      }
       if (this.player!.state === 'victory' && this.state === 'playing') {
         this.state = 'victory';
       }
@@ -891,6 +929,7 @@ export class Game implements GameCtx {
     if (!this.level) this.buildLevel();
     if (this.state === 'menu') {
       if (this.menuScreen === 'codex') this.renderCodex(ctx);
+      else if (this.menuScreen === 'hall') this.renderHall(ctx);
       else this.renderMenu(ctx);
       ctx.restore();
       return;
@@ -1659,6 +1698,7 @@ export class Game implements GameCtx {
       ['Stomps', String(r.stomps)],
       ...(r.heartsGot > 0 ? [[`Hearts`, '× ' + r.heartsGot] as [string, string]] : []),
       ...(this.bossSlain ? [['Magma King', 'defeated!  +' + CFG.score.boss] as [string, string]] : []),
+      ...(this.lastRunRank ? [['Hall of Claws', '#' + this.lastRunRank + ' of ' + Math.min(getRuns().length, 10)] as [string, string]] : []),
       ['Time', fmtTime(r.time) + (r.isBestTime ? '  (best!)' : '   best ' + (this.best.time === null ? '—' : fmtTime(this.best.time)))],
       ['Health bonus', '+' + r.heartBonus],
       ['Time bonus', '+' + r.timeBonus],
@@ -2009,16 +2049,26 @@ export class Game implements GameCtx {
       ...pills.map((p) => ({ x: p.x, y: 394, w: 90, h: 30, label: p.label, card: true, action: () => this.selectDifficulty(p.d) })),
       // Tappable skin swatches (drawn above)
       ...SKINS.map((s, i) => ({ x: 746 + i * 48, y: 394, w: 40, h: 30, label: s.name, card: true, action: () => this.selectSkin(s.id) })),
+      // Meta row (above the ground strip): ghost, codex, leaderboard
       {
-        x: 38, y: 474, w: 150, h: 40, label: 'Ghost: ' + (this.ghostOn ? 'On' : 'Off') + ' · G',
+        x: 38, y: 432, w: 150, h: 30, label: 'Ghost: ' + (this.ghostOn ? 'On' : 'Off') + ' · G',
         color: '#8fa8ba',
         action: () => this.toggleGhost(),
       },
       {
-        x: 202, y: 474, w: 168, h: 40, label: 'Field Notes · C',
+        x: 202, y: 432, w: 168, h: 30, label: 'Field Notes · C',
         color: '#8fa8ba',
         action: () => {
           this.menuScreen = 'codex';
+          this.audio.play('ui');
+        },
+      },
+      {
+        x: 384, y: 432, w: 168, h: 30, label: 'Hall of Claws · L',
+        color: '#8fa8ba',
+        action: () => {
+          this.menuScreen = 'hall';
+          this.hallClearArmed = false;
           this.audio.play('ui');
         },
       },
@@ -2111,6 +2161,110 @@ export class Game implements GameCtx {
         color: '#8fa8ba',
         action: () => {
           this.menuScreen = 'main';
+          this.audio.play('ui');
+        },
+      },
+    ];
+    for (const b of this.uiButtons) this.drawUIButton(ctx, b);
+  }
+
+  /** Hall of Claws: top-10 local runs with score bars, plus a clear action. */
+  renderHall(ctx: CanvasRenderingContext2D): void {
+    // Scenic backdrop (same auto-pan as the menu), dimmed for reading
+    const camX = (Math.sin(this.time * 0.06) * 0.5 + 0.5) * 900;
+    this.bg.draw(ctx, camX, this.time);
+    ctx.fillStyle = 'rgba(8,12,22,0.8)';
+    ctx.fillRect(0, 0, VW, VH);
+    // Header
+    ctx.textAlign = 'center';
+    ctx.font = '800 34px ' + FONT_STACK;
+    ctx.fillStyle = '#f4ecd9';
+    this.drawTracked(ctx, 'HALL OF CLAWS', VW / 2, 50, 3, false);
+    const total = getRuns().length;
+    ctx.font = '600 13px ' + FONT_STACK;
+    ctx.fillStyle = 'rgba(220,210,180,0.75)';
+    ctx.fillText(total === 0 ? 'No runs recorded yet' : 'Top 10 of ' + total + ' run' + (total === 1 ? '' : 's') + ' · by score', VW / 2, 72);
+
+    const top = topRuns(10);
+    const x0 = 70, x1 = 890;
+    if (top.length === 0) {
+      ctx.font = '700 16px ' + FONT_STACK;
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('The hall awaits its first legend.', VW / 2, 250);
+      ctx.font = '600 12px ' + FONT_STACK;
+      ctx.fillStyle = 'rgba(220,210,180,0.5)';
+      ctx.fillText('Finish a run and your score is carved in stone.', VW / 2, 274);
+    } else {
+      // Column headers
+      ctx.font = '700 10px ' + FONT_STACK;
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.textAlign = 'left';
+      ctx.fillText('LEVEL', 112, 104);
+      ctx.fillText('DIFFICULTY', 430, 104);
+      ctx.textAlign = 'right';
+      ctx.fillText('TIME', 600, 104);
+      ctx.fillText('DATE', 726, 104);
+      ctx.fillText('SCORE', x1, 104);
+      // Rows with score-proportional bars
+      const rowH = 36, y0 = 118;
+      const maxScore = Math.max(...top.map((r) => r.score), 1);
+      const medal = ['#ffd257', '#d7dee8', '#e0a878'];
+      const diffColor: Record<Difficulty, string> = { easy: '#9ff0a8', normal: '#ffd257', hard: '#ff8f6b' };
+      top.forEach((r, i) => {
+        const ry = y0 + i * rowH;
+        // score bar
+        const bw = ((x1 - 120 - x0) * r.score) / maxScore;
+        ctx.fillStyle = i === 0 ? 'rgba(255,210,87,0.14)' : 'rgba(255,210,87,0.06)';
+        this.roundRect(ctx, x0, ry + 3, Math.max(bw, 4), rowH - 6, 4);
+        ctx.fill();
+        // rank medal
+        ctx.textAlign = 'center';
+        ctx.font = '800 15px ' + FONT_STACK;
+        ctx.fillStyle = i < 3 ? medal[i] : 'rgba(255,255,255,0.35)';
+        ctx.fillText(String(i + 1), x0 + 24, ry + 24);
+        // level
+        ctx.textAlign = 'left';
+        ctx.font = '600 13px ' + FONT_STACK;
+        ctx.fillStyle = i === 0 ? '#ffe28a' : '#dce8f5';
+        ctx.fillText(r.level.length > 22 ? r.level.slice(0, 21) + '…' : r.level, 112, ry + 23);
+        // difficulty
+        ctx.font = '700 11px ' + FONT_STACK;
+        ctx.fillStyle = diffColor[r.difficulty] ?? '#dce8f5';
+        ctx.fillText(r.difficulty.toUpperCase(), 430, ry + 22);
+        // time + date
+        ctx.font = '600 12px ' + FONT_STACK;
+        ctx.fillStyle = 'rgba(220,232,245,0.75)';
+        ctx.textAlign = 'right';
+        ctx.fillText(r.time === null ? '—' : fmtTime(r.time), 600, ry + 23);
+        ctx.fillText(new Date(r.date).toLocaleDateString(), 726, ry + 23);
+        // score
+        ctx.font = '800 14px ' + FONT_STACK;
+        ctx.fillStyle = '#ffe28a';
+        ctx.fillText(String(r.score), x1, ry + 23);
+      });
+    }
+    // Buttons
+    this.uiButtons = [
+      {
+        x: VW / 2 - 110, y: 490, w: 220, h: 36, label: 'Back to menu · L',
+        color: '#8fa8ba',
+        action: () => {
+          this.menuScreen = 'main';
+          this.hallClearArmed = false;
+          this.audio.play('ui');
+        },
+      },
+      {
+        x: 740, y: 490, w: 150, h: 36,
+        label: this.hallClearArmed ? 'Tap again to clear' : 'Clear hall',
+        color: this.hallClearArmed ? '#e0705a' : '#8fa8ba',
+        action: () => {
+          if (this.hallClearArmed) {
+            clearRuns();
+            this.hallClearArmed = false;
+          } else {
+            this.hallClearArmed = true;
+          }
           this.audio.play('ui');
         },
       },

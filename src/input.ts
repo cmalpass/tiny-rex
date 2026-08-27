@@ -1,5 +1,6 @@
 export type GameKey =
   | 'codex'
+  | 'hall'
   | 'skinPrev'
   | 'skinNext'
   | 'restart'
@@ -61,6 +62,7 @@ export class Input {
       if (e.code === 'KeyV') this.onGameKey?.('reducedMotion');
       if (e.code === 'KeyG') this.onGameKey?.('ghost');
       if (e.code === 'KeyC') this.onGameKey?.('codex');
+      if (e.code === 'KeyL') this.onGameKey?.('hall');
       if (e.code === 'BracketLeft') this.onGameKey?.('skinPrev');
       if (e.code === 'BracketRight') this.onGameKey?.('skinNext');
       if (e.code === 'F2') {
