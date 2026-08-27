@@ -450,6 +450,11 @@ export class AudioManager {
         this.tone({ freq: 784, dur: 0.14, type: 'triangle', vol: 0.22, delay: 0.18 });
         this.tone({ freq: 1046, dur: 0.26, type: 'sine', vol: 0.16, delay: 0.28 });
         break;
+      case 'tide':
+        // Low whoosh of rising water: filtered noise bed + a slow swell tone.
+        this.noiseBurst({ dur: 0.5, vol: 0.12, freq: 420 });
+        this.tone({ freq: 120, to: 220, dur: 0.5, type: 'sine', vol: 0.1 });
+        break;
     }
   }
 
@@ -486,5 +491,12 @@ const MUSIC: Record<LevelTheme, { bpm: number; lead: number[]; bass: number[]; d
     lead: [72, 76, 79, 84, 79, 76, 72, 71, 69, 72, 76, 79, 76, 72, 69, 67, 69, 72, 76, 74, 72, 69, 67, 64, 66, 69, 72, 76, 72, 69, 66, 0],
     bass: [48, 0, 60, 0, 48, 0, 60, 0, 45, 0, 57, 0, 45, 0, 57, 0, 43, 0, 55, 0, 43, 0, 55, 0, 41, 0, 53, 0, 41, 0, 53, 0],
     drums: [1, 0, 0, 0, 2, 0, 0, 2, 1, 0, 0, 0, 2, 0, 0, 2, 1, 0, 0, 0, 2, 0, 0, 2, 1, 0, 0, 0, 2, 0, 0, 2],
+  },
+  dusk: {
+    // Slow minor-key adrift feel — sparse hats, no kicks, room for the tide.
+    bpm: 76,
+    lead: [69, 0, 72, 0, 76, 0, 72, 0, 71, 0, 67, 0, 71, 0, 69, 0, 64, 0, 67, 0, 71, 0, 74, 0, 71, 0, 67, 0, 69, 0, 0, 0],
+    bass: [45, 0, 0, 0, 52, 0, 0, 0, 43, 0, 0, 0, 50, 0, 0, 0, 40, 0, 0, 0, 47, 0, 0, 0, 45, 0, 0, 0, 52, 0, 0, 0],
+    drums: [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0],
   },
 };

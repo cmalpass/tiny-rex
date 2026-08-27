@@ -1,7 +1,7 @@
 import type { LevelTheme } from './level-data';
 import type { Player } from './player';
 import { overlap } from './util';
-import { TAU } from './config';
+import { TAU, VW } from './config';
 
 /* --- Weather tuning --- */
 export const GUST_INTERVAL = 8; // seconds between frost gusts (nominal)
@@ -127,6 +127,9 @@ export class Weather {
     if (theme === 'meadow') {
       for (let i = 0; i < 18; i++) this.motes.push(this.spawnMote(playerX));
     }
+    if (theme === 'dusk') {
+      for (let i = 0; i < 16; i++) this.motes.push(this.spawnFirefly(playerX));
+    }
   }
 
   /** Hitbox of a live eruption column. */
@@ -158,6 +161,18 @@ export class Weather {
       vy: 4 + this.rng() * 10,
       phase: this.rng() * TAU,
       size: 1.5 + this.rng() * 2,
+    };
+  }
+
+  /** Fireflies hover low over the marsh and drift lazily. */
+  private spawnFirefly(playerX: number): Mote {
+    return {
+      x: playerX - 520 + this.rng() * 1040,
+      y: 280 + this.rng() * 240,
+      vx: 4 + this.rng() * 10,
+      vy: 2 + this.rng() * 6,
+      phase: this.rng() * TAU,
+      size: 1.6 + this.rng() * 1.6,
     };
   }
 
@@ -248,7 +263,27 @@ export class Weather {
   draw(ctx: CanvasRenderingContext2D, camX: number): void {
     if (this.theme === 'frost') this.drawStreaks(ctx, camX);
     else if (this.theme === 'volcanic') this.drawVents(ctx, camX);
+    else if (this.theme === 'dusk') this.drawFireflies(ctx, camX);
     else this.drawMotes(ctx, camX);
+  }
+
+  private drawFireflies(ctx: CanvasRenderingContext2D, camX: number): void {
+    for (const m of this.motes) {
+      const x = m.x - camX;
+      if (x < -20 || x > VW + 20) continue;
+      // Slow blink: a firefly's glow swells and fades over ~3 s.
+      const blink = 0.5 + 0.5 * Math.sin(this.t * 2.1 + m.phase);
+      const a = 0.25 + 0.6 * blink;
+      const glow = ctx.createRadialGradient(x, m.y, 0.5, x, m.y, 7 * m.size);
+      glow.addColorStop(0, `rgba(214,255,140,${(a * 0.8).toFixed(3)})`);
+      glow.addColorStop(1, 'rgba(214,255,140,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(x - 8 * m.size, m.y - 8 * m.size, 16 * m.size, 16 * m.size);
+      ctx.fillStyle = `rgba(232,255,190,${a.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(x, m.y, m.size, 0, TAU);
+      ctx.fill();
+    }
   }
 
   private drawStreaks(ctx: CanvasRenderingContext2D, camX: number): void {

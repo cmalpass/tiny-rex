@@ -749,6 +749,24 @@ export class Game implements GameCtx {
         vrot: (Math.random() - 0.5) * 12,
       }));
     }
+    // Duskfen flourish: the fen falls silent as the nest comes home
+    if (this.levelIdx === 4 && !this.daily) {
+      this.addStatus('The fen falls silent. The nest is home.', '#c9a0ff');
+      this.audio.play('tide');
+      for (let i = 0; i < (this.reducedMotion ? 12 : 40); i++) {
+        this.particles.push(new Particle({
+          x: this.level!.goal.x - 140 + Math.random() * 280,
+          y: 40 + Math.random() * 80,
+          vx: (Math.random() - 0.5) * 30,
+          vy: 20 + Math.random() * 40,
+          life: 2 + Math.random(),
+          size: 4,
+          color: ['#c9a0ff', '#8fd0ff', '#ffd257'][i % 3],
+          grav: 40,
+          type: 'dot',
+        }));
+      }
+    }
     // Final score
     const timeBonus = Math.max(0, CFG.score.timeBonusBase - Math.floor(this.elapsed) * CFG.score.timeBonusPerSec);
     const heartBonus = this.player!.hearts * CFG.score.heartBonus;
@@ -844,6 +862,22 @@ export class Game implements GameCtx {
     for (const d of this.level?.doors ?? []) d.latched = true;
   }
 
+  /**
+   * Rising tide (Duskfen): the waterline climbs while the run is live
+   * (playing or dying — the clock keeps pressure mid-knockback) and
+   * pings once when it first reaches the player.
+   */
+  private updateTide(dt: number): void {
+    const lvl = this.level;
+    if (!lvl?.tide) return;
+    lvl.waterY = Math.max(lvl.tide.toY, lvl.waterY - lvl.tide.rate * dt);
+    if (!lvl.tideWarned && this.player && lvl.waterY < this.player.rect.y + this.player.rect.h) {
+      lvl.tideWarned = true;
+      this.addStatus('The tide is rising!', '#8fd0ff');
+      this.audio.play('tide');
+    }
+  }
+
   update(dt: number): void {
     this.input.pollGamepad();
     this.audio.update(dt);
@@ -854,6 +888,7 @@ export class Game implements GameCtx {
       this.ghost?.update(this.elapsed);
       this.level!.update(dt, this.time, this.player!);
       this.player!.update(dt, this.time, this.input, this.level!);
+      this.updateTide(dt);
       this.weather.update(dt, this.player!);
       this.camera.update(dt, this.player!, this.level!.width, this);
       this.updateAdaptive();
@@ -888,6 +923,7 @@ export class Game implements GameCtx {
       this.dyingT += dt;
       this.level!.update(dt, this.time, this.player!);
       this.player!.update(dt, this.time, this.input, this.level!);
+      this.updateTide(dt);
       this.weather.update(dt, this.player!);
       this.camera.update(dt, this.player!, this.level!.width, this);
       if (this.dyingT > 1.15) {
@@ -1030,6 +1066,27 @@ export class Game implements GameCtx {
     this.weather.draw(ctx, camX);
 
     ctx.restore();
+
+    // Rising tide (screen space — the water spans the whole viewport)
+    if (this.level?.tide) {
+      const top = this.level.waterY;
+      if (Number.isFinite(top) && top < VH) {
+        const wg = ctx.createLinearGradient(0, top, 0, VH);
+        wg.addColorStop(0, 'rgba(72,138,186,0.72)');
+        wg.addColorStop(1, 'rgba(14,40,78,0.94)');
+        ctx.fillStyle = wg;
+        ctx.fillRect(0, top, VW, VH - top);
+        ctx.beginPath();
+        for (let x = 0; x <= VW; x += 12) {
+          const y = top + Math.sin(x * 0.02 + this.time * 2.4) * 2.5;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = 'rgba(190,225,255,0.85)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
 
     // Vignette-ish bottom fade for depth
     const vg = ctx.createLinearGradient(0, VH - 60, 0, VH);
@@ -1751,11 +1808,12 @@ export class Game implements GameCtx {
     // Draw a slice of the level floor for grounding
     const volcanic = this.bg.theme === 'volcanic';
     const frost = this.bg.theme === 'frost';
-    ctx.fillStyle = volcanic ? '#42304a' : frost ? '#8fa8c4' : '#8a5f3c';
+    const dusk = this.bg.theme === 'dusk';
+    ctx.fillStyle = volcanic ? '#42304a' : frost ? '#8fa8c4' : dusk ? '#3a3050' : '#8a5f3c';
     ctx.fillRect(0, 460, VW, 80);
-    ctx.fillStyle = volcanic ? '#5c4258' : frost ? '#e8f4fc' : '#5da854';
+    ctx.fillStyle = volcanic ? '#5c4258' : frost ? '#e8f4fc' : dusk ? '#54436e' : '#5da854';
     ctx.fillRect(0, 460, VW, 12);
-    ctx.fillStyle = volcanic ? '#8a5a78' : frost ? '#ffffff' : '#6fbe62';
+    ctx.fillStyle = volcanic ? '#8a5a78' : frost ? '#ffffff' : dusk ? '#8a6f9e' : '#6fbe62';
     ctx.fillRect(0, 460, VW, 5);
     // Decor
     drawDecor(ctx, { type: 'tree', x: 130, s: 1.1 }, this.time, 460);
@@ -1789,7 +1847,7 @@ export class Game implements GameCtx {
     ctx.font = '800 64px ' + FONT_STACK;
     ctx.lineJoin = 'round';
     ctx.lineWidth = 6;
-    ctx.strokeStyle = volcanic ? 'rgba(60,25,20,0.85)' : 'rgba(30,50,30,0.85)';
+    ctx.strokeStyle = volcanic ? 'rgba(60,25,20,0.85)' : dusk ? 'rgba(30,18,44,0.85)' : 'rgba(30,50,30,0.85)';
     ctx.strokeText('TINY REX', VW / 2, 118 + bounce);
     const tg = ctx.createLinearGradient(0, 56, 0, 124);
     if (volcanic) {
@@ -1798,6 +1856,9 @@ export class Game implements GameCtx {
     } else if (frost) {
       tg.addColorStop(0, '#eaf7ff');
       tg.addColorStop(1, '#7fb5e6');
+    } else if (dusk) {
+      tg.addColorStop(0, '#f0c880');
+      tg.addColorStop(1, '#8a5fa8');
     } else {
       tg.addColorStop(0, '#c8f0a0');
       tg.addColorStop(1, '#5da854');
@@ -1882,7 +1943,7 @@ export class Game implements GameCtx {
     const cardGap = 14;
     const cardW = Math.floor((680 - cardGap * (cardCount - 1)) / cardCount);
     const cardX0 = VW / 2 - (cardW * cardCount + cardGap * (cardCount - 1)) / 2;
-    const cardAccents = ['#9ff0a8', '#ff9d7a', '#8fd8ff', '#ff7a5c'];
+    const cardAccents = ['#9ff0a8', '#ff9d7a', '#8fd8ff', '#ff7a5c', '#a9c2ff'];
     for (let i = 0; i < cardCount; i++) {
       const isDaily = i === LEVELS.length;
       const cx0 = cardX0 + i * (cardW + cardGap);

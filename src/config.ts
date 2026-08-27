@@ -23,6 +23,8 @@ export const CFG = {
     invulnTime: 1.6,
     maxHearts: 3,
     lavaBounce: 580,
+    /** Upward splash when the rising tide claims Rex. */
+    tideBounce: 300,
     respawnInvuln: 2.2,
   },
   camera: { lerp: 5.5, lookAhead: 46, maxShake: 14 },

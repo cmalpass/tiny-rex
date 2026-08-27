@@ -67,8 +67,8 @@ describe('LEVEL_DATA — Crystal Valley integrity', () => {
 });
 
 describe('LEVELS registry', () => {
-  it('exposes all four levels with distinct themes', () => {
-    expect(LEVELS).toHaveLength(4);
+  it('exposes all five levels with distinct themes', () => {
+    expect(LEVELS).toHaveLength(5);
     expect(LEVELS[0].id).toBe(0);
     expect(LEVELS[0].theme).toBe('meadow');
     expect(LEVELS[1].id).toBe(1);
@@ -78,6 +78,9 @@ describe('LEVELS registry', () => {
     expect(LEVELS[3].id).toBe(3);
     expect(LEVELS[3].name).toBe('Molten Nest');
     expect(LEVELS[3].theme).toBe('volcanic');
+    expect(LEVELS[4].id).toBe(4);
+    expect(LEVELS[4].name).toBe('Duskfen');
+    expect(LEVELS[4].theme).toBe('dusk');
     expect(LEVELS[0].def).toBe(LEVEL_DATA);
   });
 });
@@ -381,11 +384,11 @@ describe('LEVEL_4 — Molten Nest integrity', () => {
 });
 
 describe('Hidden fossils (all hand-built levels)', () => {
-  it('places exactly three fossils per level (twelve total)', () => {
+  it('places exactly three fossils per level (fifteen total)', () => {
     for (const l of LEVELS) {
       expect(l.def.fossils, l.name).toHaveLength(3);
     }
-    expect(LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0)).toBe(12);
+    expect(LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0)).toBe(15);
   });
 
   it('keeps every fossil inside the level bounds, above the ground line', () => {

@@ -42,10 +42,10 @@ describe('FieldNote entity', () => {
 });
 
 describe('Field note content', () => {
-  it('has exactly 3 notes per hand-built level (12 total)', () => {
+  it('has exactly 3 notes per hand-built level (15 total)', () => {
     expect(NOTES.length).toBe(LEVELS.length);
     for (const levelNotes of NOTES) expect(levelNotes).toHaveLength(3);
-    expect(totalNotes()).toBe(12);
+    expect(totalNotes()).toBe(15);
   });
 
   it('every note has a title, a paragraph of text and a hint', () => {
