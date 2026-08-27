@@ -37,6 +37,10 @@ export class AudioManager {
   private musicNextT = 0; // AudioContext time of the next step (0 = unscheduled)
   private musicStep = 0;
 
+  /* --- Adaptive layers: always scheduled, crossfaded by setAdaptive --- */
+  private urgentGain: GainNode | null = null; // drums that tense the run up
+  private shimmerGain: GainNode | null = null; // high pad that sparkles over crystal fields
+
   constructor() {
     this.muted = Store.get('tinyrex_muted', false);
   }
@@ -58,6 +62,18 @@ export class AudioManager {
       clearInterval(this.musicTimer);
       this.musicTimer = null;
     }
+    this.setAdaptive(false, false); // let the layers settle when music stops
+  }
+
+  /**
+   * Crossfade the adaptive layers. The layers are scheduled continuously
+   * while music plays, so only the gains move — no audible clicks.
+   */
+  setAdaptive(urgent: boolean, shimmer: boolean): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    if (this.urgentGain) this.urgentGain.gain.setTargetAtTime(urgent ? 0.9 : 0, t, 0.35);
+    if (this.shimmerGain) this.shimmerGain.gain.setTargetAtTime(shimmer ? 0.85 : 0, t, 0.5);
   }
 
   private scheduleMusic(): void {
@@ -68,6 +84,7 @@ export class AudioManager {
     if (this.musicNextT === 0) this.musicNextT = this.ctx.currentTime + 0.12;
     const lead = MUSIC[theme].lead;
     const bass = MUSIC[theme].bass;
+    const drums = MUSIC[theme].drums;
     while (this.musicNextT < this.ctx.currentTime + 0.15) {
       if (!this.muted) {
         const idx = this.musicStep % lead.length;
@@ -75,13 +92,31 @@ export class AudioManager {
         if (ln > 0) this.musicNote(midiToFreq(ln), this.musicNextT, step * 0.9, 'square', 0.045);
         const bn = bass[idx % bass.length];
         if (bn > 0) this.musicNote(midiToFreq(bn), this.musicNextT, step * 0.9, 'triangle', 0.06);
+        // Urgent layer: per-theme drum pattern (1 = kick, 2 = hat).
+        const dn = drums[idx];
+        if (dn === 1) this.kick(this.musicNextT);
+        else if (dn === 2) this.hat(this.musicNextT);
+        // Shimmer layer: soft octave-up echo of the lead, plus a sparkle ping.
+        if (ln > 0) {
+          this.musicNote(midiToFreq(ln + 12), this.musicNextT, step * 1.7, 'sine', 0.05, this.shimmerGain);
+          if (idx % 8 === 4) {
+            this.musicNote(midiToFreq(ln + 24), this.musicNextT + step * 0.5, 0.4, 'sine', 0.06, this.shimmerGain);
+          }
+        }
       }
       this.musicStep++;
       this.musicNextT += step;
     }
   }
 
-  private musicNote(freq: number, t0: number, dur: number, type: OscillatorType, vol: number): void {
+  private musicNote(
+    freq: number,
+    t0: number,
+    dur: number,
+    type: OscillatorType,
+    vol: number,
+    out?: GainNode | null,
+  ): void {
     const osc = this.ctx!.createOscillator();
     const g = this.ctx!.createGain();
     osc.type = type;
@@ -89,9 +124,42 @@ export class AudioManager {
     g.gain.setValueAtTime(vol, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     osc.connect(g);
-    g.connect(this.master!);
+    g.connect(out ?? this.master!);
     osc.start(t0);
     osc.stop(t0 + dur + 0.02);
+  }
+
+  /* Urgent-layer drums: a low kick thump and a short hi-hat tick. */
+  private kick(t0: number): void {
+    const osc = this.ctx!.createOscillator();
+    const g = this.ctx!.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(130, t0);
+    osc.frequency.exponentialRampToValueAtTime(42, t0 + 0.12);
+    g.gain.setValueAtTime(0.5, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.13);
+    osc.connect(g);
+    g.connect(this.urgentGain!);
+    osc.start(t0);
+    osc.stop(t0 + 0.15);
+  }
+
+  private hat(t0: number): void {
+    const len = Math.max(1, Math.floor(this.ctx!.sampleRate * 0.045));
+    const buf = this.ctx!.createBuffer(1, len, this.ctx!.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = this.ctx!.createBufferSource();
+    src.buffer = buf;
+    const filt = this.ctx!.createBiquadFilter();
+    filt.type = 'highpass';
+    filt.frequency.value = 6000;
+    const g = this.ctx!.createGain();
+    g.gain.value = 0.3;
+    src.connect(filt);
+    filt.connect(g);
+    g.connect(this.urgentGain!);
+    src.start(t0);
   }
 
   unlock(): void {
@@ -109,6 +177,12 @@ export class AudioManager {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : 0.5;
       this.master.connect(this.ctx.destination);
+      this.urgentGain = this.ctx.createGain();
+      this.urgentGain.gain.value = 0;
+      this.urgentGain.connect(this.master);
+      this.shimmerGain = this.ctx.createGain();
+      this.shimmerGain.gain.value = 0;
+      this.shimmerGain.connect(this.master);
       this.ensureAmbient();
     } catch {
       this.ctx = null;
@@ -277,11 +351,27 @@ export class AudioManager {
       case 'rockfall':
         this.noiseBurst({ dur: 0.12, vol: 0.12, freq: 500 });
         break;
-      case 'victory':
-        [523, 659, 784, 1046, 784, 1046].forEach((f, i) =>
-          this.tone({ freq: f, dur: i === 5 ? 0.4 : 0.16, type: 'triangle', vol: 0.22, delay: i * 0.13 }),
+      case 'victory': {
+        // A flawless run (no damage, no deaths) earns the longer, brighter fanfare.
+        const seq = opts?.flawless
+          ? [523, 659, 784, 1046, 1318, 1568, 1318, 2093]
+          : [523, 659, 784, 1046, 784, 1046];
+        seq.forEach((f, i) =>
+          this.tone({
+            freq: f,
+            dur: i === seq.length - 1 ? 0.5 : 0.16,
+            type: 'triangle',
+            vol: 0.22,
+            delay: i * (opts?.flawless ? 0.12 : 0.13),
+          }),
         );
+        if (opts?.flawless) {
+          // High bell shimmer over the final notes
+          this.tone({ freq: 2637, dur: 0.4, type: 'sine', vol: 0.12, delay: 0.72 });
+          this.tone({ freq: 2093, dur: 0.4, type: 'sine', vol: 0.1, delay: 0.84 });
+        }
         break;
+      }
       case 'ui':
         this.tone({ freq: 660, to: 880, dur: 0.07, type: 'square', vol: 0.08 });
         break;
@@ -357,23 +447,27 @@ export class AudioManager {
   }
 }
 
-/* Chiptune melodies per theme (MIDI note numbers, 0 = rest). 32 steps = 4 bars of 8ths. */
+/* Chiptune melodies per theme (MIDI note numbers, 0 = rest). 32 steps = 4 bars of 8ths.
+ * drums: 0 = rest, 1 = kick, 2 = hat — the adaptive "urgent" layer. */
 const midiToFreq = (n: number): number => 440 * Math.pow(2, (n - 69) / 12);
 
-const MUSIC: Record<LevelTheme, { bpm: number; lead: number[]; bass: number[] }> = {
+const MUSIC: Record<LevelTheme, { bpm: number; lead: number[]; bass: number[]; drums: number[] }> = {
   meadow: {
     bpm: 108,
     lead: [69, 72, 76, 81, 76, 72, 69, 76, 66, 69, 73, 78, 81, 78, 73, 69, 69, 72, 76, 73, 72, 69, 66, 62, 64, 66, 69, 73, 72, 69, 64, 0],
     bass: [45, 0, 57, 0, 45, 0, 57, 0, 42, 0, 54, 0, 42, 0, 54, 0, 38, 0, 50, 0, 38, 0, 50, 0, 40, 0, 52, 0, 40, 0, 52, 0],
+    drums: [1, 0, 0, 2, 0, 0, 1, 2, 1, 0, 0, 2, 0, 0, 1, 2, 1, 0, 0, 2, 0, 0, 1, 2, 1, 0, 0, 2, 0, 0, 1, 2],
   },
   volcanic: {
     bpm: 92,
     lead: [57, 60, 64, 67, 64, 60, 57, 55, 54, 57, 60, 64, 60, 57, 54, 52, 55, 57, 60, 62, 60, 57, 55, 52, 52, 54, 57, 60, 57, 54, 52, 0],
     bass: [33, 0, 45, 0, 33, 0, 45, 0, 30, 0, 42, 0, 30, 0, 42, 0, 31, 0, 43, 0, 31, 0, 43, 0, 40, 0, 52, 0, 40, 0, 52, 0],
+    drums: [1, 0, 2, 1, 0, 2, 1, 2, 1, 0, 2, 1, 0, 2, 1, 2, 1, 0, 2, 1, 0, 2, 1, 2, 1, 0, 2, 1, 0, 2, 1, 2],
   },
   frost: {
     bpm: 100,
     lead: [72, 76, 79, 84, 79, 76, 72, 71, 69, 72, 76, 79, 76, 72, 69, 67, 69, 72, 76, 74, 72, 69, 67, 64, 66, 69, 72, 76, 72, 69, 66, 0],
     bass: [48, 0, 60, 0, 48, 0, 60, 0, 45, 0, 57, 0, 45, 0, 57, 0, 43, 0, 55, 0, 43, 0, 55, 0, 41, 0, 53, 0, 41, 0, 53, 0],
+    drums: [1, 0, 0, 0, 2, 0, 0, 2, 1, 0, 0, 0, 2, 0, 0, 2, 1, 0, 0, 0, 2, 0, 0, 2, 1, 0, 0, 0, 2, 0, 0, 2],
   },
 };

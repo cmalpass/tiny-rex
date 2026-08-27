@@ -18,6 +18,7 @@ import { generateDailyLevel, dailySeed, dailyLabel, rexCode } from './daily';
 import { GhostRecorder, GhostPlayer } from './ghost';
 import { drawDecor } from './decor';
 import { Sprite, SKINS, skinUnlocked } from './sprite';
+import { adaptiveFlags } from './adaptive';
 import { drawPowerUpIcon, POWERUP_COLORS } from './powerup';
 import type { PowerUpType } from './powerup';
 import type { GameCtx } from './ctx';
@@ -108,6 +109,10 @@ export class Game implements GameCtx {
   private star80Shown = false;
   private star100Shown = false;
   deaths = 0;
+  /** Hearts lost this run (god mode and bubble saves don't count). 0 = flawless. */
+  hits = 0;
+  private lastUrgent = false;
+  private lastShimmer = false;
   particles: Particle[] = [];
   texts: FloatingText[] = [];
   status = { msg: '', color: '#fff', t: 0 };
@@ -331,6 +336,9 @@ export class Game implements GameCtx {
     this.star100Shown = false;
     this.bossSlain = false;
     this.deaths = 0;
+    this.hits = 0;
+    this.lastUrgent = false;
+    this.lastShimmer = false;
     this.elapsed = 0;
     this.time = 0;
     this.particles = [];
@@ -620,8 +628,36 @@ export class Game implements GameCtx {
     }
   }
 
+  /** The player lost a heart: counts against a flawless run. */
+  onPlayerHit(): void {
+    this.hits += 1;
+  }
+
+  /**
+   * Crossfade the adaptive music layers: drums tense up when hearts run low,
+   * hazards loom ahead, or the boss is in the arena; the shimmer pad sparkles
+   * over crystal-dense stretches. Called every frame while playing; the
+   * audio manager only moves the gains when a flag actually changed.
+   */
+  private updateAdaptive(): void {
+    const p = this.player!;
+    const lvl = this.level!;
+    const flags = adaptiveFlags({
+      hearts: p.hearts,
+      playerX: p.x,
+      bossAlive: lvl.boss !== null && !lvl.boss.dead,
+      hazards: lvl.hazards,
+      crystals: lvl.crystals,
+    });
+    if (flags.urgent === this.lastUrgent && flags.shimmer === this.lastShimmer) return;
+    this.lastUrgent = flags.urgent;
+    this.lastShimmer = flags.shimmer;
+    this.audio.setAdaptive(flags.urgent, flags.shimmer);
+  }
+
   onPlayerDeath(): void {
     this.deaths += 1;
+    this.hits += 1;
     const s = getStats();
     s.deaths += 1;
     Store.set('tinyrex_stats', s);
@@ -636,7 +672,8 @@ export class Game implements GameCtx {
     this.victoryT = 0;
     this.starChime = 0;
     this.uiButtons = []; // no menu buttons linger during the celebration
-    this.audio.play('victory');
+    this.audio.play('victory', { flawless: this.hits === 0 });
+    this.audio.setAdaptive(false, false); // let the run's tension settle
     this.addShake(4);
     // Confetti from above the nest (molten palette when the boss fell)
     const palette = this.bossSlain
@@ -750,6 +787,7 @@ export class Game implements GameCtx {
       this.level!.update(dt, this.time, this.player!);
       this.player!.update(dt, this.time, this.input, this.level!);
       this.camera.update(dt, this.player!, this.level!.width, this);
+      this.updateAdaptive();
       // track crystal count
       this.crystalsGot = this.level!.crystals.filter((c) => c.collected).length;
       // Combo expires once the window elapses without another pickup

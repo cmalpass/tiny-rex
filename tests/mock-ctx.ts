@@ -10,6 +10,7 @@ export interface MockCtx extends GameCtx {
   shakes: number[];
   deaths: number;
   victories: number;
+  hits: number;
   checkpoints: number;
   bossDefeats: number;
   audio: {
@@ -43,6 +44,7 @@ export function makeCtx(): MockCtx {
     shakes: [],
     deaths: 0,
     victories: 0,
+    hits: 0,
     checkpoints: 0,
     bossDefeats: 0,
     burst: (x, y, n, colors, type, speed) => {
@@ -63,6 +65,9 @@ export function makeCtx(): MockCtx {
     },
     onPlayerVictory: () => {
       ctx.victories += 1;
+    },
+    onPlayerHit: () => {
+      ctx.hits += 1;
     },
     onBossDefeated: () => {
       ctx.bossDefeats += 1;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CFG } from '../src/config';
 import { Game } from '../src/game';
 import { LEVEL_DATA, LEVELS } from '../src/level-data';
@@ -501,5 +501,79 @@ describe('Magma King (Molten Nest)', () => {
     p.vy = 0;
     for (let i = 0; i < 30 && game.state !== 'victory'; i++) game.update(DT);
     expect(game.state).toBe('victory');
+  });
+});
+
+describe('Adaptive soundtrack', () => {
+  let game: Game;
+
+  beforeEach(() => {
+    localStorage.clear();
+    game = makeGame();
+  });
+
+  it('tracks hits for the flawless counter (damage and deaths)', () => {
+    game.handleKey('primary');
+    expect(game.hits).toBe(0);
+    game.onPlayerHit();
+    expect(game.hits).toBe(1);
+    game.onPlayerHit();
+    game.onPlayerDeath();
+    expect(game.hits).toBe(3);
+    expect(game.deaths).toBe(1);
+  });
+
+  it('restart clears the hit counter', () => {
+    game.handleKey('primary');
+    game.onPlayerHit();
+    game.handleKey('restart');
+    expect(game.hits).toBe(0);
+  });
+
+  it('plays the flawless fanfare variant when the run was clean', () => {
+    const spy = vi.spyOn(game.audio, 'play');
+    game.handleKey('primary');
+    game.onPlayerVictory();
+    const victoryCalls = spy.mock.calls.filter((c) => c[0] === 'victory');
+    expect(victoryCalls.length).toBe(1);
+    expect(victoryCalls[0][1]).toEqual({ flawless: true });
+  });
+
+  it('falls back to the plain fanfare after taking a hit', () => {
+    const spy = vi.spyOn(game.audio, 'play');
+    game.handleKey('primary');
+    game.onPlayerHit();
+    game.onPlayerVictory();
+    const victoryCalls = spy.mock.calls.filter((c) => c[0] === 'victory');
+    expect(victoryCalls[0][1]).toEqual({ flawless: false });
+  });
+
+  it('crossfades the urgent layer when hearts run low', () => {
+    game.handleKey('primary');
+    const spy = vi.spyOn(game.audio, 'setAdaptive');
+    game.player!.hearts = 1;
+    game.update(0.016);
+    expect(spy.mock.calls.some((c) => c[0] === true)).toBe(true);
+  });
+
+  it('crossfades the urgent layer when a hazard looms ahead', () => {
+    game.handleKey('primary');
+    const spy = vi.spyOn(game.audio, 'setAdaptive');
+    const hz = game.level!.hazards[0];
+    game.player!.x = hz.x - 320;
+    game.player!.y = 414;
+    game.player!.vy = 0;
+    game.update(0.016);
+    expect(spy.mock.calls.some((c) => c[0] === true)).toBe(true);
+  });
+
+  it('stays calm at a clean start and settles the layers on victory', () => {
+    game.handleKey('primary');
+    const spy = vi.spyOn(game.audio, 'setAdaptive');
+    game.update(0.016);
+    // At the spawn point with full hearts, nothing has triggered
+    expect(spy.mock.calls.some((c) => c[0] === true)).toBe(false);
+    game.onPlayerVictory();
+    expect(spy.mock.calls[spy.mock.calls.length - 1]).toEqual([false, false]);
   });
 });

@@ -465,6 +465,7 @@ export class Player {
       return;
     }
     this.hearts -= 1;
+    this.game.onPlayerHit();
     this.invulnT = CFG.player.invulnTime;
     this.hurtT = 0.5;
     this.game.audio.play('hurt');
