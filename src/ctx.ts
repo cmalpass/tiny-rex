@@ -11,6 +11,8 @@ export interface SfxOptions {
   starIndex?: number;
   /** Pressure plate just pressed (true) or released (false). */
   pressed?: boolean;
+  /** Victory fanfare variant: true for a flawless run (no damage, no deaths). */
+  flawless?: boolean;
 }
 
 /** Minimal SFX surface that entities need from the audio manager. */
@@ -40,6 +42,11 @@ export interface GameCtx {
   addStatus(msg: string, color?: string): void;
   onPlayerDeath(): void;
   onPlayerVictory(): void;
+  /**
+   * The player lost a heart (god mode and bubble saves do not count).
+   * Feeds the flawless-run tracking for the victory fanfare.
+   */
+  onPlayerHit(): void;
   /**
    * The Magma King collapsed: bonus score, fanfare, and the nest gate
    * latches open. Fired exactly once per boss death.
