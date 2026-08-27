@@ -433,6 +433,10 @@ export class AudioManager {
         this.noiseBurst({ dur: 0.08, vol: 0.16, freq: 1600 });
         this.tone({ freq: 900, to: 300, dur: 0.16, type: 'sine', vol: 0.2 });
         break;
+      case 'wind':
+        // Low whoosh when a frostpeak gust kicks in.
+        this.noiseBurst({ dur: 0.9, vol: 0.15, freq: 260 });
+        break;
     }
   }
 

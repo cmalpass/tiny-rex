@@ -19,6 +19,7 @@ import { GhostRecorder, GhostPlayer } from './ghost';
 import { drawDecor } from './decor';
 import { Sprite, SKINS, skinUnlocked } from './sprite';
 import { adaptiveFlags } from './adaptive';
+import { Weather } from './weather';
 import { drawPowerUpIcon, POWERUP_COLORS } from './powerup';
 import type { PowerUpType } from './powerup';
 import type { GameCtx } from './ctx';
@@ -90,6 +91,7 @@ export class Game implements GameCtx {
   readonly input = new Input();
   readonly bg = new Background();
   readonly camera = new Camera();
+  readonly weather = new Weather();
   level: Level | null = null;
   player: Player | null = null;
   state: GameState = 'menu'; // menu | playing | paused | dying | gameover | victory
@@ -170,6 +172,7 @@ export class Game implements GameCtx {
     // Stamp the jump buffer with the unpaused game clock so buffering
     // works across pause boundaries.
     this.input.now = () => this.time;
+    this.weather.onGust = () => this.audio.play('wind');
     this.bindPointer();
     this.resize();
     this.loadRecords();
@@ -305,6 +308,8 @@ export class Game implements GameCtx {
     // Daily levels have no fossils; the sentinel keeps fossil ids stable.
     this.level = new Level(info.def, this, DIFFICULTIES[this.difficulty].enemySpeed, this.daily ? -1 : this.levelIdx);
     this.bg.theme = info.theme;
+    this.weather.reducedMotion = this.reducedMotion;
+    this.weather.apply(info.theme, this.level!.hazards, this.level!.start.x);
   }
 
   /** Total hidden fossils across the hand-built levels. */
@@ -786,6 +791,7 @@ export class Game implements GameCtx {
       this.ghost?.update(this.elapsed);
       this.level!.update(dt, this.time, this.player!);
       this.player!.update(dt, this.time, this.input, this.level!);
+      this.weather.update(dt, this.player!);
       this.camera.update(dt, this.player!, this.level!.width, this);
       this.updateAdaptive();
       // track crystal count
@@ -810,6 +816,7 @@ export class Game implements GameCtx {
       this.dyingT += dt;
       this.level!.update(dt, this.time, this.player!);
       this.player!.update(dt, this.time, this.input, this.level!);
+      this.weather.update(dt, this.player!);
       this.camera.update(dt, this.player!, this.level!.width, this);
       if (this.dyingT > 1.15) {
         this.state = 'gameover';
@@ -943,6 +950,7 @@ export class Game implements GameCtx {
     // Particles & floating text
     for (const p of this.particles) p.draw(ctx);
     for (const t of this.texts) t.draw(ctx);
+    this.weather.draw(ctx, camX);
 
     ctx.restore();
 
