@@ -332,6 +332,17 @@ export class AudioManager {
         );
         this.noiseBurst({ dur: 0.08, vol: 0.08, freq: 2400 });
         break;
+      case 'powerup':
+        // Bright rising four-note pickup chime.
+        [523, 784, 1046, 1568].forEach((f, i) =>
+          this.tone({ freq: f, dur: 0.1, type: 'triangle', vol: 0.18, delay: i * 0.05 }),
+        );
+        break;
+      case 'bubblePop':
+        // Soap-bubble pop: soft hiss plus a falling blip.
+        this.noiseBurst({ dur: 0.08, vol: 0.16, freq: 1600 });
+        this.tone({ freq: 900, to: 300, dur: 0.16, type: 'sine', vol: 0.2 });
+        break;
     }
   }
 

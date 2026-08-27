@@ -18,6 +18,8 @@ import { generateDailyLevel, dailySeed, dailyLabel, rexCode } from './daily';
 import { GhostRecorder, GhostPlayer } from './ghost';
 import { drawDecor } from './decor';
 import { Sprite, SKINS, skinUnlocked } from './sprite';
+import { drawPowerUpIcon, POWERUP_COLORS } from './powerup';
+import type { PowerUpType } from './powerup';
 import type { GameCtx } from './ctx';
 import type { Checkpoint } from './checkpoint';
 import type { Platform } from './platform';
@@ -853,6 +855,12 @@ export class Game implements GameCtx {
     for (const f of this.level!.fossils) {
       if (!f.collected) f.draw(ctx, this.time);
     }
+    // Power-up capsules (enemy drops)
+    for (const pw of this.level!.powerups) {
+      if (pw.collected) continue;
+      if (pw.x + 30 < camX - 40 || pw.x - 30 > camX + VW + 40) continue;
+      pw.draw(ctx, this.time);
+    }
     for (const e of this.level!.enemies) {
       if (e.dead) continue;
       if (e.x + e.w < camX - 60 || e.x > camX + VW + 60) continue;
@@ -1182,6 +1190,33 @@ export class Game implements GameCtx {
       }
     }
     ctx.restore();
+    // Active power-up chips (under the heart panel, left)
+    if (this.player) {
+      const p = this.player;
+      const chips: { type: PowerUpType; frac: number }[] = [];
+      if (p.magnetT > 0) chips.push({ type: 'magnet', frac: p.magnetT / CFG.powerup.magnetDur });
+      if (p.doubleJumpT > 0) chips.push({ type: 'double', frac: p.doubleJumpT / CFG.powerup.doubleJumpDur });
+      if (p.bubble) chips.push({ type: 'bubble', frac: 1 });
+      let chipX = 22;
+      for (const chip of chips) {
+        ctx.fillStyle = 'rgba(20,30,45,0.6)';
+        this.roundRect(ctx, chipX, 80, 46, 26, 8);
+        ctx.fill();
+        ctx.strokeStyle = POWERUP_COLORS[chip.type];
+        ctx.lineWidth = 1.5;
+        this.roundRect(ctx, chipX, 80, 46, 26, 8);
+        ctx.stroke();
+        drawPowerUpIcon(ctx, chip.type, chipX + 14, 93);
+        // Remaining-time bar (full for the one-hit bubble)
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        this.roundRect(ctx, chipX + 27, 87, 14, 4, 2);
+        ctx.fill();
+        ctx.fillStyle = POWERUP_COLORS[chip.type];
+        this.roundRect(ctx, chipX + 27, 87, Math.max(2, 14 * chip.frac), 4, 2);
+        ctx.fill();
+        chipX += 54;
+      }
+    }
     // Progress toward the nest (top centre, between the panels)
     if (this.player && this.level) this.drawProgress(ctx);
     // Magma King: health bar + orb indicators (top centre, under the track)
