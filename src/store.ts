@@ -95,6 +95,23 @@ export function findFossil(id: string): void {
   Store.set('tinyrex_fossils', [...found, id]);
 }
 
+/**
+ * Found field-note ids ("<levelIdx>:<i>"), persistent across runs. A note
+ * can be re-collected for score on later runs, but only the first
+ * discovery counts toward the codex.
+ */
+export function getFoundNotes(): string[] {
+  const v = Store.get<string[] | null>('tinyrex_notes', null);
+  return Array.isArray(v) ? v : [];
+}
+
+/** Record a note discovery; no-op when it is already in the codex. */
+export function findNote(id: string): void {
+  const found = getFoundNotes();
+  if (found.includes(id)) return;
+  Store.set('tinyrex_notes', [...found, id]);
+}
+
 /** Selected Rex skin id; unknown/corrupt values fall back to Classic. */
 export function getSkinId(): string {
   const v = Store.get<string | null>('tinyrex_skin', null);

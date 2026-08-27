@@ -91,6 +91,12 @@ export function makeCtx(): MockCtx {
       ctx.audio.play('fossil');
       ctx.statuses.push('fossil:' + id);
     },
+    collectNote: (x, y, id) => {
+      ctx.addScore(150, x, y);
+      ctx.burst(x, y, 10, ['#fbf6ea', '#cfe6ff'], 'dot', 130);
+      ctx.audio.play('note');
+      ctx.statuses.push('note:' + id);
+    },
   };
   return ctx;
 }

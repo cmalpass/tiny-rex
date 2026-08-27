@@ -68,4 +68,9 @@ export interface GameCtx {
    * is persisted to the fossil codex (id = "<levelIdx>:<i>").
    */
   collectFossil(x: number, y: number, id: string): void;
+  /**
+   * A field-note page was picked up: score + sparkle, and the first
+   * discovery is persisted to the notes codex (id = "<levelIdx>:<i>").
+   */
+  collectNote(x: number, y: number, id: string): void;
 }
