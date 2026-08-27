@@ -15,6 +15,7 @@ import { Door } from './door';
 import { Projectile } from './projectile';
 import type { ProjectileKind } from './projectile';
 import { Fossil } from './fossil';
+import { FieldNote } from './lore';
 import { MagmaKing } from './boss';
 import { PowerUp } from './powerup';
 import type { PowerUpType } from './powerup';
@@ -39,6 +40,8 @@ export class Level {
   doors: Door[];
   projectiles: Projectile[];
   fossils: Fossil[];
+  /** Field-note pages (lore codex). */
+  notes: FieldNote[];
   /** The Magma King (Molten Nest only). */
   boss: MagmaKing | null;
   /** Power-up capsules dropped by stomped enemies. */
@@ -50,6 +53,7 @@ export class Level {
     this.enemySpeed = enemySpeed;
     this.game = game;
     this.fossils = (d.fossils ?? []).map((f, i) => new Fossil(f.x, f.y, levelIdx + ':' + i));
+    this.notes = (d.notes ?? []).map((n, i) => new FieldNote(n.x, n.y, levelIdx + ':' + i));
     this.springs = (d.springs ?? []).map((s) => new SpringPad(s.x, s.y));
     this.plates = (d.plates ?? []).map((p) => new PressurePlate(p.x, p.y, game));
     this.doors = (d.doors ?? []).map((dr) => new Door(dr.x, dr.y, dr.w, dr.h, game));
@@ -150,6 +154,7 @@ export class Level {
     for (const c of this.crystals) c.collected = false;
     for (const h of this.hearts) h.collected = false;
     for (const f of this.fossils) f.collected = false;
+    for (const n of this.notes) n.collected = false;
     for (const e of this.enemies) e.reset();
     this.boss?.reset();
     // Restore each hazard's own interval (the original hard-coded 2.2,

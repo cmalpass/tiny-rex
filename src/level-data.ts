@@ -72,6 +72,8 @@ export interface LevelDef {
   springs?: Point[];
   /** Hidden fossils: persistent meta-collectibles (id = "<levelIdx>:<i>"). */
   fossils?: Point[];
+  /** Field-note pages: lore collectibles read in the menu codex (id = "<levelIdx>:<i>"). */
+  notes?: Point[];
   /** Pressure plates: hold to keep the referenced door (index into `doors`) open. */
   plates?: { x: number; y: number; door: number }[];
   /** Sliding gates: {x, y, w, h}; y is the top, bottom meets the ground. */
@@ -210,6 +212,11 @@ const LEVEL_1: LevelDef = {
     { x: 3230, y: 363 }, // stepping stone over lava pool A
     { x: 4990, y: 323 }, // stone ledge right above the spike pit
   ],
+  notes: [
+    { x: 2400, y: 436 }, // by the first flag
+    { x: 4630, y: 436 }, // by the last flag
+    { x: 3264, y: 363 }, // beside the stepping stone over lava pool A
+  ],
   goal: { x: 7150, y: 460 },
   decor: [
     { type: 'sign', x: 120 },
@@ -336,6 +343,11 @@ const LEVEL_2: LevelDef = {
     { x: 2830, y: 393 }, // stepping stone mid-moat, lava on both sides
     { x: 5685, y: 313 }, // stone above the twin falling-rock gauntlet
     { x: 7010, y: 275 }, // high stone of the home-stretch jump chain
+  ],
+  notes: [
+    { x: 2270, y: 436 }, // by the first flag
+    { x: 5719, y: 313 }, // beside the stone above the twin falling-rock gauntlet
+    { x: 6380, y: 436 }, // by the last flag
   ],
   goal: { x: 7350, y: 460 },
   decor: [
@@ -468,6 +480,11 @@ const LEVEL_3: LevelDef = {
     { x: 5925, y: 263 }, // bonus spring ledge, high above the rockfall ridge
     { x: 7700, y: 425 }, // behind the final gate, patrolled by a beetle
   ],
+  notes: [
+    { x: 2850, y: 436 }, // by the first flag
+    { x: 5891, y: 263 }, // beside the bonus spring ledge, high above the rockfall ridge
+    { x: 7666, y: 425 }, // beside the fossil behind the final gate
+  ],
   goal: { x: 7850, y: 460 },
   decor: [
     { type: 'sign', x: 120 },
@@ -534,6 +551,11 @@ const LEVEL_4: LevelDef = {
     { x: 1352, y: 296 }, // high ledge in the approach
     { x: 3320, y: 428 }, // arena nook between boss patrol and right wall
     { x: 3720, y: 428 }, // behind the gate, near the nest
+  ],
+  notes: [
+    { x: 2110, y: 436 }, // by the flag before the arena
+    { x: 3286, y: 428 }, // arena nook beside the right wall
+    { x: 3686, y: 428 }, // behind the gate, near the nest
   ],
   boss: { x: 2760, y: 356, minX: 2320, maxX: 3160 },
   orbs: [

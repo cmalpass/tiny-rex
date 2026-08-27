@@ -437,6 +437,12 @@ export class AudioManager {
         // Low whoosh when a frostpeak gust kicks in.
         this.noiseBurst({ dur: 0.9, vol: 0.15, freq: 260 });
         break;
+      case 'note':
+        // Soft page rustle followed by a bright two-note pencil chime.
+        this.noiseBurst({ dur: 0.12, vol: 0.12, freq: 900 });
+        this.tone({ freq: 659, dur: 0.12, type: 'triangle', vol: 0.18, delay: 0.06 });
+        this.tone({ freq: 880, dur: 0.18, type: 'sine', vol: 0.16, delay: 0.16 });
+        break;
     }
   }
 

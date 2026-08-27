@@ -359,6 +359,15 @@ export class Player {
       }
     }
 
+    // --- Field notes (persistent lore, re-collectable for score) ---
+    for (const n of level.notes) {
+      if (n.collected) continue;
+      if (overlap(this.rect, n.rect)) {
+        n.collected = true;
+        this.game.collectNote(n.x, n.y, n.id);
+      }
+    }
+
     // --- Enemies: stomp from above, hurt from the side ---
     for (const e of level.enemies) {
       if (e.dead) continue;

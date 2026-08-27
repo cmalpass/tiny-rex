@@ -1,7 +1,7 @@
 import { CFG, VW, VH, TAU, FONT_STACK, DIFFICULTIES, STARS } from './config';
 import type { Difficulty } from './config';
 import { clamp, easeOutBack, fmtTime } from './util';
-import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack, getFoundFossils, findFossil, getSkinId, setSkinId } from './store';
+import { Store, getStats, getBest, getBestStars, getDailyBest, getDailyStars, getGhostEnabled, setGhostEnabled, getGhostTrack, saveGhostTrack, getFoundFossils, findFossil, getFoundNotes, findNote, getSkinId, setSkinId } from './store';
 import type { GameStats } from './store';
 import { AudioManager } from './audio';
 import { Input } from './input';
@@ -20,6 +20,7 @@ import { drawDecor } from './decor';
 import { Sprite, SKINS, skinUnlocked } from './sprite';
 import { adaptiveFlags } from './adaptive';
 import { Weather } from './weather';
+import { NOTES, totalNotes as countNotes } from './lore';
 import { drawPowerUpIcon, POWERUP_COLORS } from './powerup';
 import type { PowerUpType } from './powerup';
 import type { GameCtx } from './ctx';
@@ -139,6 +140,10 @@ export class Game implements GameCtx {
   ghostOn: boolean = getGhostEnabled();
   /** Fossil ids discovered so far (persistent meta-progress). */
   fossilsFound: string[] = getFoundFossils();
+  /** Field-note ids discovered so far (persistent meta-progress). */
+  notesFound: string[] = getFoundNotes();
+  /** Menu sub-screen: the main menu or the field-notes codex. */
+  menuScreen: 'main' | 'codex' = 'main';
   private ghost: GhostPlayer | null = null;
   private ghostRec: GhostRecorder | null = null;
   /** Cheat queue: apply max hearts once a player exists. */
@@ -317,6 +322,11 @@ export class Game implements GameCtx {
     return LEVELS.reduce((n, l) => n + (l.def.fossils?.length ?? 0), 0);
   }
 
+  /** Total field notes across the hand-built levels. */
+  totalNotes(): number {
+    return countNotes();
+  }
+
   startGame(): void {
     this.buildLevel();
     this.player = new Player(this.level!.start.x, this.level!.start.y, this);
@@ -442,6 +452,11 @@ export class Game implements GameCtx {
     }
     if ((k === 'skinPrev' || k === 'skinNext') && this.state === 'menu') {
       this.cycleSkin(k === 'skinNext' ? 1 : -1);
+      return;
+    }
+    if (k === 'codex' && this.state === 'menu') {
+      this.menuScreen = this.menuScreen === 'codex' ? 'main' : 'codex';
+      this.audio.play('ui');
       return;
     }
     if (k === 'debug') {
@@ -609,6 +624,25 @@ export class Game implements GameCtx {
       }
     } else {
       this.burst(x, y, 10, ['#f4ecd9', '#e8dcc0'], 'dot', 130);
+    }
+  }
+
+  /** Field-note pickup (GameCtx): persistent discovery + re-collectable score. */
+  collectNote(x: number, y: number, id: string): void {
+    const first = !this.notesFound.includes(id);
+    if (first) {
+      findNote(id);
+      this.notesFound = getFoundNotes();
+    }
+    this.addScore(CFG.score.fossil, x, y - 14);
+    this.audio.play('note');
+    if (first) {
+      this.addStatus('Field note found! ' + this.notesFound.length + '/' + this.totalNotes(), '#cfe6ff');
+      this.addShake(2);
+      this.burst(x, y, 22, ['#fbf6ea', '#cfe6ff', '#e7dcc2', '#fff'], 'dot', 170);
+      this.texts.push(new FloatingText(x, y - 34, 'NEW NOTE!', '#cfe6ff'));
+    } else {
+      this.burst(x, y, 10, ['#fbf6ea', '#cfe6ff'], 'dot', 130);
     }
   }
 
@@ -856,7 +890,8 @@ export class Game implements GameCtx {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     if (!this.level) this.buildLevel();
     if (this.state === 'menu') {
-      this.renderMenu(ctx);
+      if (this.menuScreen === 'codex') this.renderCodex(ctx);
+      else this.renderMenu(ctx);
       ctx.restore();
       return;
     }
@@ -899,6 +934,9 @@ export class Game implements GameCtx {
     }
     for (const f of this.level!.fossils) {
       if (!f.collected) f.draw(ctx, this.time);
+    }
+    for (const n of this.level!.notes) {
+      if (!n.collected) n.draw(ctx, this.time);
     }
     // Power-up capsules (enemy drops)
     for (const pw of this.level!.powerups) {
@@ -1747,7 +1785,7 @@ export class Game implements GameCtx {
     ctx.font = '600 12px ' + FONT_STACK;
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText(
-      'PLAYS ' + this.stats.runs + '  ·  DEATHS ' + this.stats.deaths + '  ·  CRYSTALS ' + this.stats.crystals + '  ·  HEARTS ' + this.stats.hearts + '  ·  FOSSILS ' + this.fossilsFound.length + '/' + this.totalFossils() + '  ·  SINCE ' + since,
+      'PLAYS ' + this.stats.runs + '  ·  DEATHS ' + this.stats.deaths + '  ·  CRYSTALS ' + this.stats.crystals + '  ·  HEARTS ' + this.stats.hearts + '  ·  FOSSILS ' + this.fossilsFound.length + '/' + this.totalFossils() + '  ·  NOTES ' + this.notesFound.length + '/' + this.totalNotes() + '  ·  SINCE ' + since,
       VW / 2,
       205,
     );
@@ -1976,6 +2014,14 @@ export class Game implements GameCtx {
         color: '#8fa8ba',
         action: () => this.toggleGhost(),
       },
+      {
+        x: 202, y: 474, w: 168, h: 40, label: 'Field Notes · C',
+        color: '#8fa8ba',
+        action: () => {
+          this.menuScreen = 'codex';
+          this.audio.play('ui');
+        },
+      },
       { x: VW / 2 - 100, y: 470, w: 200, h: 48, label: 'Start Game', action: () => this.startGame() },
       {
         x: 648, y: 474, w: 132, h: 40, label: (this.audio.muted ? 'Sound: Off' : 'Sound: On') + ' · M',
@@ -2004,6 +2050,91 @@ export class Game implements GameCtx {
     ctx.fillStyle = '#fff';
     this.drawTracked(ctx, 'ENTER · SPACE · TAP', VW / 2, 534, 2, false);
     ctx.globalAlpha = 1;
+  }
+
+  /** The field-notes codex: one parchment column per level. */
+  renderCodex(ctx: CanvasRenderingContext2D): void {
+    // Scenic backdrop (same auto-pan as the menu), dimmed for reading
+    const camX = (Math.sin(this.time * 0.06) * 0.5 + 0.5) * 900;
+    this.bg.draw(ctx, camX, this.time);
+    ctx.fillStyle = 'rgba(8,12,22,0.8)';
+    ctx.fillRect(0, 0, VW, VH);
+    // Header
+    ctx.textAlign = 'center';
+    ctx.font = '800 34px ' + FONT_STACK;
+    ctx.fillStyle = '#f4ecd9';
+    this.drawTracked(ctx, 'FIELD NOTES', VW / 2, 50, 3, false);
+    ctx.font = '600 13px ' + FONT_STACK;
+    ctx.fillStyle = 'rgba(220,210,180,0.75)';
+    ctx.fillText(this.notesFound.length + '/' + this.totalNotes() + ' recovered', VW / 2, 72);
+    // One panel per hand-built level
+    const pw = 224, gap = 14, py = 92, ph = 388;
+    const x0 = (VW - (pw * LEVELS.length + gap * (LEVELS.length - 1))) / 2;
+    LEVELS.forEach((li, i) => {
+      const px = x0 + i * (pw + gap);
+      this.drawInfoPanel(ctx, px, py, pw, ph, li.subtitle);
+      const found = (n: number) => this.notesFound.includes(i + ':' + n);
+      NOTES[i].forEach((entry, n) => {
+        const ey = py + 62 + n * 108;
+        // divider above entries 2 and 3
+        if (n > 0) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(px + 16, ey - 10);
+          ctx.lineTo(px + pw - 16, ey - 10);
+          ctx.stroke();
+        }
+        if (found(n)) {
+          ctx.textAlign = 'left';
+          ctx.font = '800 12px ' + FONT_STACK;
+          ctx.fillStyle = '#ffd257';
+          ctx.fillText(entry.title, px + 16, ey);
+          ctx.font = '600 10.5px ' + FONT_STACK;
+          ctx.fillStyle = '#d8cfae';
+          this.wrapText(ctx, entry.text, px + 16, ey + 16, pw - 32, 13);
+        } else {
+          ctx.textAlign = 'center';
+          ctx.font = '800 24px ' + FONT_STACK;
+          ctx.fillStyle = 'rgba(255,255,255,0.28)';
+          ctx.fillText('???', px + pw / 2, ey + 22);
+          ctx.font = '600 10px ' + FONT_STACK;
+          ctx.fillStyle = 'rgba(220,210,180,0.55)';
+          ctx.fillText(entry.hint, px + pw / 2, ey + 44);
+        }
+      });
+    });
+    // Back button
+    this.uiButtons = [
+      {
+        x: VW / 2 - 110, y: 490, w: 220, h: 36, label: 'Back to menu · C',
+        color: '#8fa8ba',
+        action: () => {
+          this.menuScreen = 'main';
+          this.audio.play('ui');
+        },
+      },
+    ];
+    for (const b of this.uiButtons) this.drawUIButton(ctx, b);
+  }
+
+  /** Word-wrap helper; draws the text line by line, returns the count drawn. */
+  wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number): number {
+    const words = text.split(' ');
+    let line = '';
+    let lines = 0;
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        ctx.fillText(line, x, y + lines * lineHeight);
+        lines += 1;
+        line = w;
+      } else {
+        line = test;
+      }
+    }
+    ctx.fillText(line, x, y + lines * lineHeight);
+    return lines + 1;
   }
 
   drawDebug(ctx: CanvasRenderingContext2D): void {
