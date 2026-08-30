@@ -251,9 +251,11 @@ describe('CheatSystem', () => {
     expect(feed(cs, GOD, 0)).toBe('god');
   });
 
-  it('fires score surge on a triple jump tap', () => {
+  it('fires score surge on down, down, jump (and not on jump spam)', () => {
     const cs = new CheatSystem();
-    expect(feed(cs, ['primary', 'primary', 'primary'], 0, 150)).toBe('surge');
+    expect(feed(cs, ['primary', 'primary', 'primary'], 0, 150)).toBeNull(); // jump spam is normal play
+    const cs2 = new CheatSystem();
+    expect(feed(cs2, ['down', 'down', 'primary'], 0, 150)).toBe('surge');
   });
 
   it('max hearts fires on its sequence', () => {
@@ -286,8 +288,8 @@ describe('CheatSystem', () => {
 
   it('surge can be re-triggered after its cooldown', () => {
     const cs = new CheatSystem();
-    expect(feed(cs, ['primary', 'primary', 'primary'], 0, 150)).toBe('surge');
-    expect(feed(cs, ['primary', 'primary', 'primary'], 12500, 150)).toBe('surge');
+    expect(feed(cs, ['down', 'down', 'primary'], 0, 150)).toBe('surge');
+    expect(feed(cs, ['down', 'down', 'primary'], 12500, 150)).toBe('surge');
   });
 });
 

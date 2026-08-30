@@ -21,8 +21,9 @@ export const CHEATS: CheatDef[] = [
   { id: 'god', seq: ['left', 'left', 'right', 'right', 'up', 'up', 'primary'], windowMs: 900, cooldownMs: 3000 },
   // Max hearts (one time)
   { id: 'maxhearts', seq: ['down', 'down', 'up', 'up', 'left', 'right', 'primary'], windowMs: 900, cooldownMs: 60000, once: true },
-  // Score surge: triple-tap jump
-  { id: 'surge', seq: ['primary', 'primary', 'primary'], windowMs: 560, cooldownMs: 12000 },
+  // Score surge: down, down, jump. 'down' is never part of normal movement,
+  // so rapid jumping in play can no longer false-fire the +1000 surge.
+  { id: 'surge', seq: ['down', 'down', 'primary'], windowMs: 900, cooldownMs: 12000 },
 ];
 
 /**

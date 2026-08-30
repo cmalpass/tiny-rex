@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LEVEL_DATA, LEVELS } from '../src/level-data';
+import { CFG } from '../src/config';
 
 describe('LEVEL_DATA — Crystal Valley integrity', () => {
   it('has the original top-level shape', () => {
@@ -11,7 +12,7 @@ describe('LEVEL_DATA — Crystal Valley integrity', () => {
   });
 
   it('keeps the original entity counts', () => {
-    expect(LEVEL_DATA.platforms).toHaveLength(35);
+    expect(LEVEL_DATA.platforms).toHaveLength(38);
     expect(LEVEL_DATA.crystals).toHaveLength(39);
     expect(LEVEL_DATA.crystals.filter((c) => c.bonus)).toHaveLength(1);
     expect(LEVEL_DATA.enemies).toHaveLength(14);
@@ -82,6 +83,48 @@ describe('LEVELS registry', () => {
     expect(LEVELS[4].name).toBe('Duskfen');
     expect(LEVELS[4].theme).toBe('dusk');
     expect(LEVELS[0].def).toBe(LEVEL_DATA);
+  });
+
+  it('keeps every ground gap jumpable (or assisted by a reachable platform)', () => {
+    // Max measured jump distance is ~233 px (285 px/s × ~0.83 s airtime).
+    // A wider gap is only legal if a non-ground platform overlaps it with a
+    // top surface the player can reach from the ground line.
+    const MAX_JUMP = 233;
+    for (const info of LEVELS) {
+      const d = info.def;
+      const GY = d.startGroundY;
+      const grounds = d.platforms
+        .filter((p) => (p.type ?? 'ground') === 'ground' && p.y === GY)
+        .sort((a, b) => a.x - b.x);
+      for (let i = 1; i < grounds.length; i++) {
+        const prev = grounds[i - 1];
+        const cur = grounds[i];
+        const gapStart = prev.x + prev.w;
+        const gap = cur.x - gapStart;
+        if (gap <= 0) continue;
+        if (gap <= MAX_JUMP) continue;
+        const assisted = d.platforms.some(
+          (p) =>
+            (p.type ?? 'ground') !== 'ground' &&
+            p.x < cur.x &&
+            p.x + p.w > gapStart &&
+            p.y >= GY - 135 &&
+            p.y <= GY + 10,
+        );
+        expect(assisted, `${info.name}: unassisted ${gap}px ground gap at x=${gapStart}–${cur.x}`).toBe(true);
+      }
+    }
+  });
+
+  it('places every goal on its final ground segment', () => {
+    for (const info of LEVELS) {
+      const d = info.def;
+      const GY = d.startGroundY;
+      const grounds = d.platforms.filter((p) => (p.type ?? 'ground') === 'ground' && p.y === GY);
+      const last = grounds.reduce((a, b) => (b.x > a.x ? b : a));
+      expect(d.goal.x, info.name).toBeGreaterThanOrEqual(last.x);
+      expect(d.goal.x, info.name).toBeLessThanOrEqual(last.x + last.w);
+    }
   });
 });
 
@@ -339,6 +382,14 @@ describe('LEVEL_4 — Molten Nest integrity', () => {
     }
   });
 
+  it('bridges the right-wall seam for a safe boss exit', () => {
+    const arena = L4.platforms.find((p) => p.type === 'ground' && p.x === 2244);
+    const exit = L4.platforms.find((p) => p.type === 'ground' && p.x === 3344);
+    expect(arena).toBeTruthy();
+    expect(exit).toBeTruthy();
+    expect(exit!.x).toBe(arena!.x + arena!.w);
+  });
+
   it('places the nest gate on the exit floor ahead of the goal', () => {
     expect(L4.doors).toHaveLength(1);
     const d = L4.doors![0];
@@ -380,6 +431,85 @@ describe('LEVEL_4 — Molten Nest integrity', () => {
         'enemy ' + e.type,
       ).toBe(true);
     }
+  });
+
+  describe('left-perch / stomp-band route', () => {
+    const P = CFG.player;
+    const DT = 1 / 60; // match the game's fixed timestep
+    const boss = L4.boss!;
+    const bossW = 120;
+    const stompBandY = boss.y + 18; // where a falling foot registers a stomp
+    const leftPerch = L4.platforms.find(
+      (p) => p.type === 'stone' && p.y === 320 && p.x < 2700,
+    )!;
+    const leftOrb = L4.orbs![0];
+    const floorTop = 460;
+
+    /**
+     * Simulate the intended entry move: Rex leaves the pocket just right of the
+     * left wall running right at full speed with a full jump, stomps the Magma
+     * King the moment his falling foot is over the boss's body, and the stomp
+     * bounce should deposit him on the left perch. Mirrors the game's 60 Hz
+     * per-frame checks.
+     */
+    function simulateRoute(bossX: number) {
+      let x = 2282; // entry pocket, just right of the left wall (2284)
+      let feet = floorTop;
+      let vy = -P.jumpVel;
+      const vx = P.maxSpeed;
+      let stomped = false;
+      let stompX = -1;
+      let landX = -1;
+      let perchClear = true;
+      for (let i = 0; i < 240; i++) {
+        x += vx * DT;
+        vy += P.gravity * DT;
+        feet += vy * DT;
+        // Pre-landing arc must not clip the left perch's face/body.
+        const overPerchX = x + P.w > leftPerch.x && x < leftPerch.x + leftPerch.w;
+        const overPerchY = feet > leftPerch.y && feet - P.h < leftPerch.y + leftPerch.h;
+        if (stomped === false && overPerchX && overPerchY) perchClear = false;
+        // Stomp: falling fast, foot at/above the band, body over the boss.
+        const overBoss = x + P.w > bossX && x < bossX + bossW;
+        if (!stomped && vy > 40 && feet <= stompBandY && overBoss) {
+          stomped = true;
+          stompX = x;
+          vy = -P.stompBounce;
+        } else if (
+          stomped &&
+          vy > 0 &&
+          overPerchX &&
+          feet >= leftPerch.y &&
+          feet - P.h <= leftPerch.y &&
+          landX < 0
+        ) {
+          landX = x;
+          break;
+        }
+      }
+      return { stomped, stompX, landX, perchClear };
+    }
+
+    it('left orb sits above the left perch so it is stompable from it', () => {
+      expect(leftOrb.x).toBeGreaterThanOrEqual(leftPerch.x);
+      expect(leftOrb.x).toBeLessThanOrEqual(leftPerch.x + leftPerch.w);
+      expect(leftOrb.y).toBeLessThan(leftPerch.y); // above the perch top
+      expect(leftOrb.y + 13).toBeGreaterThan(leftPerch.y - P.h); // reachable band
+    });
+
+    it('the boss at his leftmost patrol spot leaves a gap to the left perch', () => {
+      // Boss right edge at minX must stay left of the perch so the perch is
+      // never blocked by the boss body.
+      expect(boss.minX + bossW).toBeLessThan(leftPerch.x);
+    });
+
+    it('pocket → stomp → perch route is kinematically intact', () => {
+      const r = simulateRoute(boss.minX);
+      expect(r.stomped, 'arc should stomp the Magma King').toBe(true);
+      expect(r.perchClear, 'pre-landing arc should clear the left perch').toBe(true);
+      expect(r.landX, 'bounce should land on the left perch').toBeGreaterThan(leftPerch.x - P.w);
+      expect(r.landX + P.w).toBeLessThanOrEqual(leftPerch.x + leftPerch.w + 4);
+    });
   });
 });
 

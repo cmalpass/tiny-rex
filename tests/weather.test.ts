@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Game } from '../src/game';
+import { CFG } from '../src/config';
 import {
   Weather,
   ventState,
   GUST_DUR,
+  GUST_FORCE,
   GEYSER_PERIOD,
   GEYSER_ERUPT,
   GEYSER_BUBBLE,
@@ -111,6 +113,51 @@ describe('frost gusts', () => {
     expect(p.vx).toBeGreaterThan(10);
   });
 
+  it('headwind can never push back a player actively countering (ground or air)', () => {
+    // Fairness invariant of the force model (GUST_FORCE == airAccel): while
+    // Rex holds the direction opposite the gust, his velocity must never
+    // turn negative — on the ground or in the air. Regression: the old
+    // velocity-blend model dragged a full-speed Rex BACKWARD at ~115 px/s
+    // for the whole 2.4 s gust and walked him off ledges into pits.
+    const P = CFG.player;
+    expect(GUST_FORCE).toBeLessThanOrEqual(P.airAccel);
+    const w = new Weather();
+    w.rng = () => 0.1; // gustDir -1: leftward headwind
+    w.apply('frost', [], 0);
+    w.gusting = GUST_DUR;
+    const frames = Math.ceil(GUST_DUR * 60);
+    for (const accel of [P.accel, P.airAccel]) {
+      const { p } = fakePlayer(0);
+      p.vx = P.maxSpeed; // running right into the wind
+      for (let i = 0; i < frames; i++) {
+        const dt = 1 / 60;
+        p.vx += accel * dt; // player.ts input step
+        p.vx = Math.max(-P.maxSpeed, Math.min(P.maxSpeed, p.vx)); // maxSpeed clamp
+        w.update(dt, p); // gust force step
+        expect(p.vx).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('a gust cannot drag an idle grounded player off the ledge', () => {
+    // Ground friction (1750) beats the gust force (950): a Rex who is not
+    // running stays put while the wind howls around him.
+    const P = CFG.player;
+    const w = new Weather();
+    w.rng = () => 0.1; // leftward gust
+    w.apply('frost', [], 0);
+    w.gusting = GUST_DUR;
+    const { p } = fakePlayer(0);
+    for (let i = 0; i < Math.ceil(GUST_DUR * 60); i++) {
+      const dt = 1 / 60;
+      w.update(dt, p); // gust pushes left
+      const s = Math.sign(p.vx); // player.ts idle friction step
+      p.vx -= s * P.friction * dt;
+      if (Math.sign(p.vx) !== s) p.vx = 0;
+      expect(p.vx).toBe(0);
+    }
+  });
+
   it('spawns streaks while gusting, unless reduced motion', () => {
     const w = new Weather();
     w.rng = () => 0.5;
@@ -189,6 +236,19 @@ describe('meadow drift', () => {
       expect(Math.abs(m.x - p.x)).toBeLessThanOrEqual(530);
     }
     expect(p.x).toBe(x0); // drift is a force, not a teleport
+  });
+
+  it('never clamps the player run speed (pollen must not fight control)', () => {
+    const w = new Weather();
+    w.rng = () => 0.5;
+    w.apply('meadow', [], 100);
+    const { p } = fakePlayer(100);
+    p.vx = 285; // max run speed
+    for (let i = 0; i < 60; i++) w.update(1 / 60, p); // 1 s of updates
+    // A blend toward the drift would drag vx down to ~14; the nudge may
+    // only add a small wobble on top of the player's own speed.
+    expect(p.vx).toBeGreaterThan(150);
+    expect(p.vx).toBeLessThan(450);
   });
 });
 

@@ -20,6 +20,7 @@ export class Projectile {
   /** extra life granted after a bounce. */
   life = 2.4;
   kind: ProjectileKind;
+  readonly originX: number;
 
   constructor(
     x: number, y: number, vx: number, vy: number,
@@ -30,6 +31,7 @@ export class Projectile {
     this.vx = vx;
     this.vy = vy;
     this.kind = kind;
+    this.originX = x;
   }
 
   get rect(): { x: number; y: number; w: number; h: number } {
@@ -61,7 +63,11 @@ export class Projectile {
     }
     if (this.age > this.life) this.dead = true;
     // hit the player
-    if (!player.dead && player.state !== 'victory' && player.invulnT <= 0 && overlap(this.rect, player.rect)) {
+    const isBehindPlayer =
+      (this.vx < 0 && player.x > this.originX + this.r) ||
+      (this.vx > 0 && player.x + player.w < this.originX - this.r);
+    if (!isBehindPlayer && !player.dead && player.state !== 'victory' &&
+        player.invulnT <= 0 && overlap(this.rect, player.rect)) {
       this.dead = true;
       player.damage({ x: this.x - this.r, w: this.r * 2 }, 'spit');
     }

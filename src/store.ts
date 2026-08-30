@@ -1,7 +1,33 @@
 import type { Difficulty } from './config';
 import type { GhostTrack } from './ghost';
-import { MIN_TRACK_POINTS } from './ghost';
+import { MIN_TRACK_POINTS, MAX_POINTS } from './ghost';
 import { SKINS } from './sprite';
+
+const MAX_STARS = 3;
+
+function cleanScore(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+function cleanTime(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+}
+
+/**
+ * Corrupt/legacy best records degrade to a clean zero state instead of
+ * leaking NaN into scoring (e.g. a score of `Infinity` from an old build).
+ */
+function cleanBest(v: unknown): { score: number; time: number | null } {
+  if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return { score: v, time: null };
+  if (!v || typeof v !== 'object') return { score: 0, time: null };
+  const b = v as { score?: unknown; time?: unknown };
+  return { score: cleanScore(b.score), time: cleanTime(b.time) };
+}
+
+function cleanStars(v: unknown): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : 0;
+  return Math.min(MAX_STARS, Math.max(0, n));
+}
 
 const SKIN_IDS: string[] = SKINS.map((s) => s.id);
 
@@ -15,6 +41,8 @@ export interface GameStats {
   hearts: number;
   /** Epoch ms of the first play; null before the first run. */
   firstPlayed: number | null;
+  /** True once every handcrafted level has been completed at least once. */
+  allClear: boolean;
 }
 
 export function getStats(): GameStats {
@@ -27,29 +55,30 @@ export function getStats(): GameStats {
     victories: s.victories ?? 0,
     hearts: s.hearts ?? 0,
     firstPlayed: s.firstPlayed ?? null,
+    allClear: s.allClear ?? false,
   };
 }
 
 /** Best score/time for one level (falls back to the legacy global key for level 0). */
 export function getBest(idx: number): { score: number; time: number | null } {
-  const b = Store.get<{ score: number; time: number | null } | null>('tinyrex_best_' + idx, null);
-  if (b) return b;
-  if (idx === 0) return Store.get('tinyrex_best_score', { score: 0, time: null as number | null });
+  const b = Store.get<unknown>('tinyrex_best_' + idx, null);
+  if (b) return cleanBest(b);
+  if (idx === 0) return cleanBest(Store.get<unknown>('tinyrex_best_score', null));
   return { score: 0, time: null };
 }
 
 export function getBestStars(idx: number): number {
-  return Store.get('tinyrex_stars_' + idx, 0);
+  return cleanStars(Store.get<unknown>('tinyrex_stars_' + idx, 0));
 }
 
 /** Best score/time for today's Daily Rex challenge. */
 export function getDailyBest(): { score: number; time: number | null } {
-  return Store.get('tinyrex_best_daily', { score: 0, time: null as number | null });
+  return cleanBest(Store.get<unknown>('tinyrex_best_daily', null));
 }
 
 /** Best star rating for the current Daily Rex challenge (0–3). */
 export function getDailyStars(): number {
-  return Store.get('tinyrex_stars_daily', 0);
+  return cleanStars(Store.get<unknown>('tinyrex_stars_daily', 0));
 }
 
 /** Ghost race toggle (default on). */
@@ -68,10 +97,27 @@ export function setGhostEnabled(on: boolean): void {
  */
 export function getGhostTrack(idx: number, date: number): GhostTrack | null {
   const key = idx === -1 ? 'tinyrex_ghost_daily' : 'tinyrex_ghost_' + idx;
-  const t = Store.get<GhostTrack | null>(key, null);
-  if (!t || !Array.isArray(t.pts) || t.pts.length < MIN_TRACK_POINTS) return null;
-  if (idx === -1 && t.date !== date) return null;
-  return t;
+  const t = Store.get<unknown>(key, null);
+  if (!t || typeof t !== 'object') return null;
+  const track = t as GhostTrack;
+  if (idx === -1 && track.date !== date) return null;
+  if (
+    !Array.isArray(track.pts) ||
+    track.pts.length < MIN_TRACK_POINTS ||
+    track.pts.length > MAX_POINTS
+  ) return null;
+  if (typeof track.score !== 'number' || !Number.isFinite(track.score)) return null;
+  if (typeof track.time !== 'number' || !Number.isFinite(track.time) || track.time <= 0) return null;
+  // Every sample must be finite and the clock must never run backwards —
+  // a broken track would make GhostPlayer interpolate NaN or jump in time.
+  let prevT = -Infinity;
+  for (const p of track.pts) {
+    if (!p || typeof p.t !== 'number' || typeof p.x !== 'number' || typeof p.y !== 'number') return null;
+    if (!Number.isFinite(p.t) || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+    if (p.t < prevT) return null;
+    prevT = p.t;
+  }
+  return track;
 }
 
 export function saveGhostTrack(idx: number, track: GhostTrack): void {

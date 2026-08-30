@@ -144,8 +144,8 @@ describe('MagmaKing behaviour', () => {
 
   it('shatters an orb when stomped: score, bounce, and a respawn timer', () => {
     const { ctx, boss } = makeRig();
-    const o = boss.orbs[0]; // (2435, 286)
-    const p = dummy(2420, 240, 300);
+    const o = boss.orbs[0]; // (2615, 286)
+    const p = dummy(2600, 240, 300);
     boss.update(DT, 0, p);
     expect(o.alive).toBe(false);
     expect(o.respawnT).toBeGreaterThan(0);

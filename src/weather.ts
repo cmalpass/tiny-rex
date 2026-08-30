@@ -6,7 +6,7 @@ import { TAU, VW } from './config';
 /* --- Weather tuning --- */
 export const GUST_INTERVAL = 8; // seconds between frost gusts (nominal)
 export const GUST_DUR = 2.4; // seconds an active gust lasts
-export const GUST_PUSH = 150; // target drift speed while gusting (px/s)
+export const GUST_FORCE = 950; // gust push force (px/s^2) — must stay <= airAccel (see updateFrost)
 export const MEADOW_DRIFT = 14; // gentle pollen sway amplitude (px/s)
 export const GEYSER_PERIOD = 6; // full volcanic vent cycle (s)
 export const GEYSER_ERUPT = 1.4; // seconds the eruption column is live
@@ -179,13 +179,21 @@ export class Weather {
   private updateFrost(dt: number, player: Player | null): void {
     if (this.gusting > 0) {
       this.gusting -= dt;
-      // Blend Rex's velocity toward the gust: the drag model in player.ts
-      // would otherwise eat a plain force almost instantly.
+      // Push as a FORCE, never as a velocity blend. Blending vx toward the
+      // gust target overrides Rex's input entirely: a headwind dragged a
+      // Rex running at full speed BACKWARD at ~115 px/s for the whole 2.4 s
+      // gust, walking him off ledges into pits (Frostpeak, gap 1300-1500).
+      // As a force the gust competes with the player's own physics, and with
+      // GUST_FORCE == airAccel the invariants hold:
+      //   grounded + countering: 1500 accel  > 950 -> Rex still advances;
+      //   grounded + idle:        1750 friction > 950 -> never shoved off a
+      //                           ledge while standing still;
+      //   air + countering:       950 airAccel >= 950 -> jump arcs are
+      //                           unaffected when Rex actively fights it;
+      //   air + idle:             950 >> 110 airDrag -> strong visible drift
+      //                           on unattended jumps/falls.
       if (player && !player.dead) {
-        // Strong blend so the drift survives the player's air drag:
-        // steady-state drift ≈ GUST_PUSH * 40 / airDrag (~55 px/s).
-        const target = this.gustDir * GUST_PUSH;
-        player.vx += (target - player.vx) * Math.min(1, dt * 40);
+        player.vx += this.gustDir * GUST_FORCE * dt;
       }
       if (!this.reducedMotion && player) {
         for (let i = 0; i < 2; i++) {
@@ -242,7 +250,10 @@ export class Weather {
   private updateMeadow(dt: number, player: Player | null): void {
     if (player && !player.dead) {
       const sway = Math.sin(this.t * 0.6) * MEADOW_DRIFT;
-      player.vx += (sway - player.vx) * Math.min(1, dt * 20);
+      // Gentle additive nudge — NOT a blend toward the sway. Blending drags
+      // vx to the drift itself and clamps Rex's top speed to ~1/4 of
+      // maxSpeed for the whole level; control must always dominate.
+      player.vx += sway * Math.min(1, dt * 20);
     }
     for (const m of this.motes) {
       m.phase += dt;

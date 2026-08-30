@@ -103,7 +103,8 @@ export function generateDailyLevel(seed: number): LevelInfo {
     if (i >= 1 && rnd() < 0.8) {
       const pw = ri(110, 130);
       const t1: PlatformDef = {
-        x: seg.x0 + ri(40, Math.max(41, w - pw - 40)),
+        // Leave a readable run-up after each pit before the first step.
+        x: seg.x0 + ri(140, Math.max(141, w - pw - 40)),
         y: GY - ri(50, 80),
         w: pw,
         h: 24,
@@ -114,17 +115,48 @@ export function generateDailyLevel(seed: number): LevelInfo {
       def.crystals.push({ x: t1.x + t1.w / 2, y: t1.y - 35 });
       // Tier-2 platform above a tier-1 (step ≤110px)
       if (rnd() < 0.45) {
-        const t2: PlatformDef = {
-          x: Math.max(seg.x0 + 20, Math.min(t1.x + ri(-120, 120), seg.x1 - 140)),
-          y: t1.y - ri(40, 70),
-          w: ri(100, 120),
-          h: 24,
-          type: 'stone',
-        };
-        def.platforms.push(t2);
-        def.crystals.push({ x: t2.x + t2.w / 2, y: t2.y - 35, bonus: rnd() < 0.35 });
+        // Keep the upper tier after the lower one. A tier that starts behind
+        // its approach slab can be mistaken for the primary target, causing
+        // a full jump from the floor to overshoot both platforms.
+        const t2Min = t1.x + t1.w + 20;
+        const t2Max = Math.min(t1.x + t1.w + 140, seg.x1 - 140);
+        if (t2Max >= t2Min) {
+          const t2: PlatformDef = {
+            x: ri(t2Min, t2Max),
+            y: t1.y - ri(40, 70),
+            w: ri(100, 120),
+            h: 24,
+            type: 'stone',
+          };
+          def.platforms.push(t2);
+          def.crystals.push({ x: t2.x + t2.w / 2, y: t2.y - 35, bonus: rnd() < 0.35 });
+        }
       }
     }
+    const floorHazard = def.hazards.find((h) =>
+      (h.type === 'spikes' || h.type === 'rocks') && h.x >= seg.x0 && h.x < seg.x1);
+    if (floorHazard) {
+      // A floor hazard directly below a tier platform can turn the intended
+      // landing into an unavoidable hit. Relocate it to open floor space so
+      // every generated hazard retains readable counterplay.
+      const candidates: number[] = [];
+      for (let sx = seg.x0 + 40; sx <= seg.x1 - floorHazard.w - 40; sx += 10) candidates.push(sx);
+      const originalX = floorHazard.x;
+      const open = candidates
+        .filter((sx) => !def.platforms.some((pl) =>
+          pl.y < GY && pl.x < sx + floorHazard.w + 12 && pl.x + pl.w > sx - 12))
+        .sort((a, b) => Math.abs(a - originalX) - Math.abs(b - originalX))[0];
+      if (open !== undefined) floorHazard.x = open;
+      else {
+        // A wide rockfall may have no clear floor slot in a compact segment.
+        // Omit it rather than making the only elevated route random damage.
+        const hazardIndex = def.hazards.indexOf(floorHazard);
+        if (hazardIndex >= 0) def.hazards.splice(hazardIndex, 1);
+        if (floorHazard.type === 'rocks') seg.hasRocks = false;
+        else seg.hasSpikes = false;
+      }
+    }
+
     // Ground crystal (skip when spikes occupy the floor); every segment is
     // guaranteed at least one crystal so no daily run is content-light.
     const segCrystalsBefore = def.crystals.length;
@@ -138,13 +170,25 @@ export function generateDailyLevel(seed: number): LevelInfo {
     // Enemy: one per segment, never in the first two
     if (i >= 2) {
       const roll = rnd();
-      if (roll < 0.35 && seg.tier1) {
-        def.enemies.push({ type: 'spitter', x: seg.tier1.x + seg.tier1.w / 2, y: seg.tier1.y - 38 });
-      } else if (roll < 0.55) {
+      if (roll < 0.55) {
         def.enemies.push({ type: 'ptero', x: seg.x0 + w / 2, y: ri(250, 300), range: ri(100, 150) });
       } else {
-        const patrol = ri(120, Math.min(250, w - 120));
-        const ex = seg.x0 + ri(60, Math.max(61, w - patrol - 60));
+        let patrol = ri(120, Math.min(250, w - 120));
+        let ex = seg.x0 + ri(60, Math.max(61, w - patrol - 60));
+        // Do not place a ground walker directly under the landing line from
+        // an elevated ledge. The player is still airborne while dropping to
+        // the lower floor, so this otherwise creates an unavoidable collision
+        // before the enemy-hop counterplay becomes available.
+        const elevatedEnds = def.platforms
+          .filter((pl) => pl.y < GY && pl.x >= seg.x0 && pl.x < seg.x1)
+          .map((pl) => pl.x + pl.w);
+        if (elevatedEnds.length) {
+          const clearStart = Math.max(...elevatedEnds) + 160;
+          if (clearStart + patrol > seg.x1 - 24 && clearStart < seg.x1 - 124) {
+            patrol = Math.max(120, seg.x1 - clearStart - 24);
+          }
+          if (clearStart + patrol <= seg.x1 - 24 && ex < clearStart) ex = clearStart;
+        }
         const type = rnd() < 0.5 ? 'beetle' : 'trike';
         def.enemies.push({ type, x: ex + patrol / 2, y: type === 'beetle' ? 432 : 424, minX: ex, maxX: ex + patrol });
       }

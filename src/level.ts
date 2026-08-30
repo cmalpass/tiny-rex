@@ -52,6 +52,8 @@ export class Level {
   waterY: number;
   /** One-shot "the tide is rising" ping. */
   tideWarned: boolean;
+  /** One-shot tension cue: the tide has climbed 80% of its rise. */
+  tideTense: boolean;
   readonly game: GameCtx;
 
   constructor(d: LevelDef, game: GameCtx, enemySpeed = 1, levelIdx = 0) {
@@ -95,6 +97,7 @@ export class Level {
     this.tide = d.tide ?? null;
     this.waterY = this.tide ? this.tide.fromY : Infinity;
     this.tideWarned = false;
+    this.tideTense = false;
   }
 
   /** Spawn a power-up capsule (enemy-kill drop). */
@@ -179,5 +182,6 @@ export class Level {
     }
     if (this.tide) this.waterY = this.tide.fromY;
     this.tideWarned = false;
+    this.tideTense = false;
   }
 }
