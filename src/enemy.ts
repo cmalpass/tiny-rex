@@ -31,6 +31,8 @@ export class Enemy {
   range: number;
   /** Spitter: seconds until the next glob. */
   fireCd: number = CFG.spitter.fireCd;
+  /** Optional per-placement range for readable, localised projectile threats. */
+  private readonly fireRange: number;
   /** Spitter: 1 right after firing, eases to 0 (nozzle recoil/glow). */
   charge = 0;
   /** Spitter: faces the player. */
@@ -50,6 +52,7 @@ export class Enemy {
     this.minX = d.minX !== undefined ? d.minX : d.x - 60;
     this.maxX = d.maxX !== undefined ? d.maxX : d.x + 60;
     this.dir = d.dir || 1;
+    this.fireRange = d.range ?? CFG.spitter.range;
     this.ax = d.x;
     this.ay = d.y;
     this.range = d.range || 130;
@@ -159,7 +162,7 @@ export class Enemy {
     const dx = pcx - ecx;
     const dyFeet = player.y + 46 - (this.y + this.h);
     const target = !player.dead && player.state !== 'victory' &&
-      Math.abs(dx) < CFG.spitter.range && Math.abs(dyFeet) < CFG.spitter.band;
+      Math.abs(dx) < this.fireRange && Math.abs(dyFeet) < CFG.spitter.band;
     this.facing = dx >= 0 ? 1 : -1;
     if (target) {
       this.fireCd -= dt;

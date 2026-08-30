@@ -49,6 +49,26 @@ npm run dev &                        # or any server URL as the second arg
 node scripts/capture-evidence.mjs
 ```
 
+## Headless playtest
+
+`scripts/playtest.mjs` drives the **production build** with a simple but
+honest bot: every 50 ms it reads the live game state, dispatches real
+keyboard events, and tries to win. A scenario fails on a softlock (no forward
+progress for 10 s), a page error, or a timeout; hand-built levels must reach
+the victory state.
+
+```sh
+npm run preview -- --port 4173 --strictPort &   # the bot expects a server
+node scripts/playtest.mjs              # all levels (0-4) + daily
+node scripts/playtest.mjs 0 2 4        # specific hand-built levels
+node scripts/playtest.mjs daily        # daily challenge only
+node scripts/playtest.mjs dusk-stress  # Duskfen late-tide respawn stress
+```
+
+Per-scenario screenshots and jump-decision logs land in `/tmp/tinyrex-e2e/`
+(`*.png`, `*.jumps.json`). The bot is intentionally naive — it exists to
+catch uncompletable layouts, softlocks, and crashes, not to beat the game.
+
 ## Controls
 
 | Action            | Keyboard                          | Touch          |
@@ -166,7 +186,7 @@ src/
   sprite.ts      Procedural drawing of Rex + all enemies.
   game.ts        State machine, fixed-timestep loop, HUD, menus.
   touch-controls.ts  DOM touch-button bindings.
-  level-data.ts  LEVELS — the two hand-designed levels (Crystal Valley, Volcanic Depths).
+  level-data.ts  LEVELS — the five hand-designed levels (Crystal Valley, Volcanic Depths, Frostpeak Pass, Molten Nest, Duskfen).
   util.ts        Small shared helpers (clamp, lerp, overlap, rng, fmtTime).
 tests/         Vitest suite: physics, state machine, level-data integrity.
 README.md      This file.

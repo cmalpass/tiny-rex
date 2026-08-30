@@ -101,6 +101,63 @@ describe('rising tide mechanic', () => {
     lvl.reset();
     expect(lvl.waterY).toBe(dusk.def.tide!.fromY);
     expect(lvl.tideWarned).toBe(false);
+    expect(lvl.tideTense).toBe(false);
+  });
+
+  it('flags tideTense once the water has climbed 80% of its rise, and reset clears it', () => {
+    const game = makeGame();
+    game.levelIdx = 4;
+    game.handleKey('primary');
+    const lvl = game.level!;
+    const t = dusk.def.tide!;
+    expect(lvl.tideTense).toBe(false);
+    // Just under the 80% threshold: no tension cue yet.
+    lvl.waterY = t.fromY - 0.79 * (t.fromY - t.toY);
+    game.update(0.016);
+    expect(lvl.tideTense).toBe(false);
+    // Past the threshold: the one-shot tension flag trips.
+    lvl.waterY = t.fromY - 0.81 * (t.fromY - t.toY);
+    game.update(0.016);
+    expect(lvl.tideTense).toBe(true);
+    // reset() clears the cue for the next run.
+    lvl.reset();
+    expect(lvl.tideTense).toBe(false);
+  });
+});
+
+describe('checkpoint & spawn safety under the full tide', () => {
+  // Lowest platform top that stays dry forever: the final waterline minus a
+  // margin. A respawn point is safe iff it has a dry refuge within running
+  // jump range (max flat gap ~210-230px, jump apex ~130-135px).
+  const SAFE_TOP = dusk.def.tide!.toY - 6;
+  const REACH_X = 230;
+  const REACH_UP = 130;
+
+  function dryRefugeNear(x: number, y: number): boolean {
+    return dusk.def.platforms.some((pl) => {
+      if (pl.y > SAFE_TOP || pl.y < y - REACH_UP) return false;
+      return Math.abs(pl.x - x) <= REACH_X;
+    });
+  }
+
+  it('every checkpoint and the spawn have a reachable dry refuge', () => {
+    const points = [...dusk.def.checkpoints, { x: dusk.def.startX, y: dusk.def.startY }];
+    expect(points.length).toBeGreaterThanOrEqual(4);
+    for (const pt of points) {
+      expect(
+        dryRefugeNear(pt.x, pt.y),
+        `no dry refuge near respawn point (${pt.x}, ${pt.y})`,
+      ).toBe(true);
+    }
+  });
+
+  it('no checkpoint sits on ground the tide eventually drowns', () => {
+    for (const cp of dusk.def.checkpoints) {
+      expect(
+        cp.y,
+        `checkpoint at x=${cp.x} stands on submergeable ground (top ${cp.y} > ${SAFE_TOP})`,
+      ).toBeLessThanOrEqual(SAFE_TOP);
+    }
   });
 });
 

@@ -19,7 +19,7 @@ export interface GhostTrack {
 /** Seconds between stored samples (~10 Hz). */
 const SAMPLE_DT = 0.1;
 /** Hard cap (~10 min at 10 Hz) so the persisted track stays small. */
-const MAX_POINTS = 6000;
+export const MAX_POINTS = 6000;
 /** Tracks shorter than this are discarded (accidental taps, instant deaths). */
 export const MIN_TRACK_POINTS = 4;
 

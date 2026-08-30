@@ -154,6 +154,9 @@ export class Game implements GameCtx {
   lastRun: RunRecord | null = null;
   /** Rank (1-based) of lastRun inside topRuns(10); null when it didn't place. */
   lastRunRank: number | null = null;
+  /** Set when a cheat fires during the current run; cheat runs stay out of
+   * the Hall of Claws and don't overwrite the stored ghost track. */
+  private cheatUsedThisRun = false;
   private ghost: GhostPlayer | null = null;
   private ghostRec: GhostRecorder | null = null;
   /** Cheat queue: apply max hearts once a player exists. */
@@ -373,6 +376,7 @@ export class Game implements GameCtx {
     this.victoryT = 0;
     this.pbAnnounced = false;
     this.pbBaseline = this.best.score;
+    this.cheatUsedThisRun = false;
     // Ghost race: record this run and replay the stored best alongside it
     this.ghostRec = new GhostRecorder();
     this.ghost = null;
@@ -437,6 +441,9 @@ export class Game implements GameCtx {
   }
 
   handleKey(k: GameKey): void {
+    // A keydown is a user gesture: unlock audio so menu SFX work even when
+    // the player never touches the mouse (idempotent + cheap when unlocked).
+    this.audio.unlock();
     // Cheat codes: every press in the menu or in play feeds the detector.
     if (this.state === 'menu' || this.state === 'playing') {
       const fired = this.cheats.press(k, performance.now());
@@ -530,6 +537,7 @@ export class Game implements GameCtx {
   /** Apply a matched cheat code (see CHEATS in src/cheats.ts). */
   private applyCheat(id: CheatId): void {
     this.audio.play('cheat');
+    if (this.state === 'playing') this.cheatUsedThisRun = true;
     const p = this.player;
     if (id === 'rainbow') {
       this.rainbow = !this.rainbow;
@@ -795,34 +803,47 @@ export class Game implements GameCtx {
       this.best = newBest;
     }
     // Ghost race: keep this run's track when it sets a new best score
+    // (cheat-assisted runs don't get to rewrite the ghost)
     const rec = this.ghostRec;
     this.ghostRec = null;
-    if (rec && isBestScore) {
+    if (rec && isBestScore && !this.cheatUsedThisRun) {
       const track = rec.finish(this.score, this.elapsed);
       if (track) {
         track.date = this.daily ? dailySeed() : -1;
         saveGhostTrack(this.daily ? -1 : this.levelIdx, track);
       }
     }
-    // Hall of Claws: carve this run into the local leaderboard
-    const hallRec: RunRecord = {
-      score: this.score,
-      time: this.elapsed,
-      level: this.daily ? 'Daily · ' + new Date().toLocaleDateString() : LEVELS[this.levelIdx].name,
-      difficulty: this.difficulty,
-      date: Date.now(),
-    };
-    addRun(hallRec);
-    // Object identity is lost through the localStorage round-trip, so match by content.
-    const rank = topRuns(10).findIndex(
-      (r) => r.score === hallRec.score && r.date === hallRec.date && r.level === hallRec.level,
-    );
-    this.lastRun = hallRec;
-    this.lastRunRank = rank >= 0 ? rank + 1 : null;
+    // Hall of Claws: carve this run into the local leaderboard. Cheat-assisted
+    // runs are excluded so the board stays honest.
+    if (!this.cheatUsedThisRun) {
+      const hallRec: RunRecord = {
+        score: this.score,
+        time: this.elapsed,
+        level: this.daily ? 'Daily · ' + new Date().toLocaleDateString() : LEVELS[this.levelIdx].name,
+        difficulty: this.difficulty,
+        date: Date.now(),
+      };
+      addRun(hallRec);
+      // Object identity is lost through the localStorage round-trip, so match by content.
+      const rank = topRuns(10).findIndex(
+        (r) => r.score === hallRec.score && r.date === hallRec.date && r.level === hallRec.level,
+      );
+      this.lastRun = hallRec;
+      this.lastRunRank = rank >= 0 ? rank + 1 : null;
+    } else {
+      this.lastRun = null;
+      this.lastRunRank = null;
+    }
     // Lifetime stats
     const s = getStats();
     s.victories += 1;
     s.crystals += this.crystalsGot;
+    // All-clear: every handcrafted level finished at least once (the daily
+    // challenge is excluded). A level's best time is non-null exactly once it
+    // has been completed, so that is the reliable "cleared" marker.
+    if (!this.daily) {
+      s.allClear = LEVELS.every((_, i) => getBest(i).time !== null);
+    }
     Store.set('tinyrex_stats', s);
     this.stats = s;
     this.audio.stopMusic();
@@ -875,6 +896,15 @@ export class Game implements GameCtx {
       lvl.tideWarned = true;
       this.addStatus('The tide is rising!', '#8fd0ff');
       this.audio.play('tide');
+    }
+    // Tension cue: once the water has climbed 80% of its total rise, ping a
+    // second, more urgent status and flag the level so the render creeps a
+    // subtle blue glow in from the screen edges.
+    const t = lvl.tide;
+    const risen = (t.fromY - lvl.waterY) / Math.max(1, t.fromY - t.toY);
+    if (!lvl.tideTense && risen >= 0.8) {
+      lvl.tideTense = true;
+      this.addStatus('The water climbs…', '#8fd0ff');
     }
   }
 
@@ -1085,6 +1115,20 @@ export class Game implements GameCtx {
         ctx.strokeStyle = 'rgba(190,225,255,0.85)';
         ctx.lineWidth = 2;
         ctx.stroke();
+      }
+      // Tension: once the tide is 80% risen, a cold blue light creeps in from
+      // the screen edges (a steady glow under reduced motion).
+      if (this.level.tideTense) {
+        const pulse = this.reducedMotion ? 1 : 0.5 + 0.5 * Math.sin(this.time * 2.2);
+        const a = 0.1 + 0.1 * pulse;
+        const eg = ctx.createRadialGradient(
+          VW / 2, VH / 2, Math.min(VW, VH) * 0.32,
+          VW / 2, VH / 2, Math.max(VW, VH) * 0.72,
+        );
+        eg.addColorStop(0, 'rgba(80,150,220,0)');
+        eg.addColorStop(1, 'rgba(120,190,255,' + a.toFixed(3) + ')');
+        ctx.fillStyle = eg;
+        ctx.fillRect(0, 0, VW, VH);
       }
     }
 
@@ -1680,6 +1724,18 @@ export class Game implements GameCtx {
         ctx.fillText('Recounting the run…', VW / 2, VH * 0.3 + 46);
         ctx.globalAlpha = 1;
       }
+      // All-clear flourish: finishing the last fen earns a one-line coda.
+      if (this.stats.allClear && t > 0.9) {
+        ctx.globalAlpha = clamp((t - 0.9) / 0.4, 0, 0.95);
+        ctx.textAlign = 'center';
+        ctx.font = '800 20px ' + FONT_STACK;
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(20,40,60,0.6)';
+        ctx.strokeText('✦ All fens crossed — the marsh is at peace ✦', VW / 2, VH * 0.3 + 76);
+        ctx.fillStyle = '#8fd0ff';
+        ctx.fillText('✦ All fens crossed — the marsh is at peace ✦', VW / 2, VH * 0.3 + 76);
+        ctx.globalAlpha = 1;
+      }
       ctx.fillStyle = 'rgba(255,255,255,' + clamp(VICTORY_PANEL_T - t, 0, 1) * 0.5 + ')';
       ctx.fillRect(0, 0, VW, VH);
       return;
@@ -1873,13 +1929,19 @@ export class Game implements GameCtx {
     this.drawTracked(ctx, lvl.subtitle, VW / 2, 156 + bounce * 0.4, 7, true);
     ctx.fillStyle = '#ffe28a';
     this.drawTracked(ctx, lvl.subtitle, VW / 2, 156 + bounce * 0.4, 7, false);
-    // Per-level records
+    // Per-level records (nudged down to make room for the all-clear badge)
+    const clearOffset = this.stats.allClear ? 16 : 0;
+    if (this.stats.allClear) {
+      ctx.font = '800 14px ' + FONT_STACK;
+      ctx.fillStyle = '#8fd0ff';
+      ctx.fillText('✦ All fens crossed', VW / 2, 182);
+    }
     ctx.font = '600 13px ' + FONT_STACK;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillText(
       'Best Score  ' + (this.best.score || '—') + '   ·   Best Time  ' + (this.best.time === null ? '—' : fmtTime(this.best.time)),
       VW / 2,
-      182,
+      182 + clearOffset,
     );
     // Lifetime stats
     const since = this.stats.firstPlayed ? new Date(this.stats.firstPlayed).toLocaleDateString() : '—';
@@ -1888,7 +1950,7 @@ export class Game implements GameCtx {
     ctx.fillText(
       'PLAYS ' + this.stats.runs + '  ·  DEATHS ' + this.stats.deaths + '  ·  CRYSTALS ' + this.stats.crystals + '  ·  HEARTS ' + this.stats.hearts + '  ·  FOSSILS ' + this.fossilsFound.length + '/' + this.totalFossils() + '  ·  NOTES ' + this.notesFound.length + '/' + this.totalNotes() + '  ·  SINCE ' + since,
       VW / 2,
-      205,
+      205 + clearOffset,
     );
     // Controls panel (left)
     const cpx = 34, cpy = 232, cpw = 240, cph = 238;

@@ -109,45 +109,66 @@ const LEVEL_1: LevelDef = {
   startGroundY: 460,
   platforms: [
     // ---- Section A: gentle opening (teach move + jump) ----
-    { x: 0, y: 460, w: 1150, h: 120, type: 'ground' },
+    // Give the opening crumble hop a forgiving landing margin before the
+    // first beetle and the level's first real gap.
+    { x: 0, y: 460, w: 1190, h: 120, type: 'ground' },
     { x: 320, y: 372, w: 130, h: 24, type: 'wood' },
     { x: 520, y: 300, w: 130, h: 24, type: 'wood' },
     { x: 760, y: 372, w: 130, h: 24, type: 'wood' },
     { x: 1010, y: 412, w: 48, h: 24, type: 'crumble' },
     { x: 1068, y: 364, w: 48, h: 24, type: 'crumble' },
     // ---- Section B: first enemies + small gaps ----
-    { x: 1230, y: 460, w: 400, h: 120, type: 'ground' },
+    { x: 1220, y: 460, w: 410, h: 120, type: 'ground' },
     { x: 1710, y: 460, w: 690, h: 120, type: 'ground' },
     { x: 1860, y: 372, w: 120, h: 24, type: 'stone' },
     { x: 2040, y: 312, w: 120, h: 24, type: 'stone' },
     { x: 2210, y: 372, w: 120, h: 24, type: 'stone' },
     // ---- Section C: spikes, bonus route, first lava pool ----
-    { x: 2480, y: 460, w: 320, h: 120, type: 'ground' },
+    // The bonus ledge's short drop lands on this bank; carry the bank to the
+    // next section so a buffered short hop cannot fall through the seam.
+    { x: 2480, y: 460, w: 400, h: 120, type: 'ground' },
     { x: 2580, y: 360, w: 160, h: 24, type: 'stone' },
-    { x: 2880, y: 460, w: 270, h: 120, type: 'ground' },
-    { x: 2950, y: 350, w: 110, h: 24, type: 'stone' },
+    { x: 2880, y: 460, w: 300, h: 120, type: 'ground' },
+    { x: 2820, y: 350, w: 110, h: 24, type: 'stone' },
     // elevated bonus route (hidden-ish, needs the jump chain)
     { x: 3080, y: 260, w: 110, h: 24, type: 'stone' },
     { x: 3220, y: 200, w: 130, h: 24, type: 'stone' },
     { x: 3200, y: 400, w: 110, h: 24, type: 'stone' }, // stepping stone over lava A
     { x: 3350, y: 460, w: 120, h: 120, type: 'ground' },
     // ---- Section D: moving platforms over the lava river ----
-    { x: 3470, y: 390, w: 100, h: 24, type: 'stone' },
+    // Broad landing stone keeps the mover route readable without making a
+    // phase-sensitive miss drop Rex directly into the lava.
+    // Start the first river stone just beyond the bank so Rex can launch
+    // before the platform underside, rather than jumping into its edge.
+    { x: 3520, y: 390, w: 290, h: 24, type: 'stone' },
     { x: 3540, y: 430, w: 110, h: 24, type: 'mover', axis: 'x', amp: 100, speed: 1.0 },
     { x: 3760, y: 390, w: 100, h: 24, type: 'stone' },
+    // The y-mover is still a visible shortcut, but this low cap makes a
+    // missed phase recoverable instead of turning the whole river into a
+    // one-shot fall.
+    { x: 3860, y: 390, w: 180, h: 24, type: 'stone' },
     { x: 3920, y: 430, w: 110, h: 24, type: 'mover', axis: 'y', amp: 90, speed: 1.2 },
     { x: 4080, y: 390, w: 100, h: 24, type: 'stone' },
+    // A fixed cap keeps the far side of the mover readable: the moving
+    // platform remains an optional shortcut, while a mistimed transfer still
+    // has a recoverable stone instead of an unrecoverable lava drop.
+    { x: 4230, y: 390, w: 110, h: 24, type: 'stone' },
     { x: 4230, y: 420, w: 110, h: 24, type: 'mover', axis: 'x', amp: 120, speed: 0.9 },
-    { x: 4470, y: 460, w: 330, h: 120, type: 'ground' },
+    // Bridge the small checkpoint seam so the patrol can be cleared with a
+    // full hop instead of forcing a landing beside the trike at the edge.
+    { x: 4470, y: 460, w: 410, h: 120, type: 'ground' },
     { x: 4650, y: 360, w: 120, h: 24, type: 'stone' },
     // ---- Section E: checkpoint 2, ptero & spike gauntlet ----
     { x: 4880, y: 460, w: 420, h: 120, type: 'ground' },
-    { x: 4970, y: 360, w: 130, h: 24, type: 'stone' },
+    { x: 5100, y: 320, w: 130, h: 24, type: 'stone' },
     // ---- Section F: falling rocks, lava pit B, last enemies ----
     { x: 5300, y: 460, w: 400, h: 120, type: 'ground' },
     { x: 5480, y: 350, w: 110, h: 24, type: 'stone' },
+    { x: 5700, y: 390, w: 110, h: 24, type: 'stone' },
     { x: 5430, y: 412, w: 48, h: 24, type: 'crumble' },
-    { x: 5950, y: 460, w: 450, h: 120, type: 'ground' },
+    // Gap to the previous ground is 180 px: a full-speed jump clears ~233 px,
+    // so this stays clearable (the old 250 px gap was unjumpable by anyone).
+    { x: 5880, y: 460, w: 520, h: 120, type: 'ground' },
     { x: 6150, y: 360, w: 120, h: 24, type: 'stone' },
     // ---- Section G: home stretch ----
     { x: 6400, y: 460, w: 1150, h: 120, type: 'ground' },
@@ -165,7 +186,7 @@ const LEVEL_1: LevelDef = {
     // Section C
     { x: 2520, y: 425 },
     { x: 2620, y: 323 }, { x: 2690, y: 323 },
-    { x: 2930, y: 425 }, { x: 3005, y: 313 },
+    { x: 2930, y: 425 },     { x: 2875, y: 313 },
     { x: 3135, y: 223 }, { x: 3285, y: 160, bonus: true }, { x: 3330, y: 223 },
     { x: 3255, y: 363 },
     // Section D (river)
@@ -183,25 +204,33 @@ const LEVEL_1: LevelDef = {
     { type: 'beetle', x: 950, y: 432, minX: 850, maxX: 1100 },
     { type: 'beetle', x: 1450, y: 432, minX: 1290, maxX: 1600 },
     { type: 'trike', x: 1950, y: 424, minX: 1850, maxX: 2150 },
-    { type: 'trike', x: 2930, y: 424, minX: 2895, maxX: 3060 },
-    { type: 'ptero', x: 3250, y: 320, range: 90 },
-    { type: 'ptero', x: 3950, y: 290, range: 150 },
-    { type: 'ptero', x: 4230, y: 250, range: 130 },
-    { type: 'ptero', x: 4700, y: 240, range: 120 },
-    { type: 'trike', x: 4700, y: 424, minX: 4500, maxX: 4780 },
+    // Keep a safe landing margin after the short spike route before the
+    // patrol begins; the old patrol could overlap Rex on the first frame
+    // after the 80 px ground gap.
+    { type: 'trike', x: 3040, y: 424, minX: 3010, maxX: 3130 },
+    // Keep the flyer above the lava jump's apex so the stepping-stone route
+    // remains a readable hazard choice instead of a timing lottery.
+    { type: 'ptero', x: 3250, y: 220, range: 90 },
+    // Keep the river flyer above the jump corridor; its old dip could clip
+    // Rex while leaving the vertical mover.
+    { type: 'ptero', x: 3950, y: 145, range: 150 },
+    { type: 'ptero', x: 4230, y: 120, range: 80 },
+    { type: 'ptero', x: 4700, y: 120, range: 80 },
+    { type: 'trike', x: 4800, y: 424, minX: 4770, maxX: 4920 },
     { type: 'beetle', x: 5150, y: 432, minX: 5050, maxX: 5280 },
-    { type: 'ptero', x: 5500, y: 250, range: 110 },
-    { type: 'beetle', x: 6100, y: 432, minX: 5990, maxX: 6350 },
-    { type: 'trike', x: 6250, y: 424, minX: 6050, maxX: 6380 },
+    // Keep the checkpoint approach clear beneath this high flight path.
+    { type: 'ptero', x: 5500, y: 120, range: 70 },
+    { type: 'beetle', x: 6000, y: 432, minX: 5920, maxX: 6080 },
+    { type: 'trike', x: 6350, y: 424, minX: 6300, maxX: 6400 },
     { type: 'beetle', x: 6900, y: 432, minX: 6700, maxX: 7050 },
   ],
   hazards: [
     { type: 'spikes', x: 2620, y: 460, w: 80 },
-    { type: 'lava', x: 3150, y: 520, w: 200 },
+    { type: 'lava', x: 3180, y: 520, w: 170 },
     { type: 'lava', x: 3470, y: 520, w: 1000 },
-    { type: 'spikes', x: 5000, y: 460, w: 70 },
+    { type: 'spikes', x: 5100, y: 460, w: 70 },
     { type: 'rocks', x: 5380, y: 460, w: 240, interval: 2.0 },
-    { type: 'lava', x: 5700, y: 520, w: 250 },
+    { type: 'lava', x: 5700, y: 520, w: 180 },
   ],
   checkpoints: [
     { x: 2330, y: 460 },
@@ -215,7 +244,7 @@ const LEVEL_1: LevelDef = {
   fossils: [
     { x: 3255, y: 163 }, // high bonus route — top of the jump chain
     { x: 3230, y: 363 }, // stepping stone over lava pool A
-    { x: 4990, y: 323 }, // stone ledge right above the spike pit
+    { x: 5105, y: 283 }, // bonus ledge beyond the spike pit
   ],
   notes: [
     { x: 2400, y: 436 }, // by the first flag
@@ -266,24 +295,38 @@ const LEVEL_2: LevelDef = {
     { x: 1820, y: 460, w: 560, h: 120, type: 'ground' },
     { x: 1950, y: 360, w: 130, h: 24, type: 'stone' },
     { x: 2200, y: 300, w: 130, h: 24, type: 'stone' },
-    { x: 2450, y: 360, w: 130, h: 24, type: 'stone' },
+    // Widen the far moat landing so the calibrated full arc lands well
+    // inside the stone instead of clipping its left edge.
+    { x: 2400, y: 360, w: 180, h: 24, type: 'stone' },
     // ---- Section C: the lava moat (stepping stones → mover → stone → y-mover) ----
     { x: 2560, y: 430, w: 100, h: 24, type: 'stone' },
-    { x: 2780, y: 430, w: 100, h: 24, type: 'stone' },
-    { x: 3000, y: 460, w: 300, h: 120, type: 'ground' },
-    { x: 3380, y: 420, w: 100, h: 24, type: 'mover', axis: 'x', amp: 90, speed: 1.1 },
-    { x: 3700, y: 390, w: 100, h: 24, type: 'stone' },
+    // Broaden the second moat step so the standard full arc lands away from
+    // its left lip instead of clipping into the lava before the bank.
+    { x: 2740, y: 430, w: 180, h: 24, type: 'stone' },
+    // A broad landing deck keeps the first moving-platform approach forgiving
+    // after the lava moat; the mover remains available as the intended shortcut.
+    { x: 3000, y: 460, w: 500, h: 120, type: 'ground' },
+    { x: 3540, y: 420, w: 100, h: 24, type: 'mover', axis: 'x', amp: 90, speed: 1.1 },
+    { x: 3700, y: 390, w: 180, h: 24, type: 'stone' },
     { x: 3880, y: 430, w: 110, h: 24, type: 'mover', axis: 'y', amp: 80, speed: 1.3 },
-    { x: 4100, y: 460, w: 320, h: 120, type: 'ground' },
+    // Extend the far shelf under the vertical mover so a late jump still
+    // lands on solid basalt instead of falling through the narrow seam.
+    { x: 3980, y: 460, w: 620, h: 120, type: 'ground' },
     // ---- Section D: spike ledges between the shelf and the rockfall ----
-    { x: 4560, y: 460, w: 380, h: 120, type: 'ground' },
+    { x: 4560, y: 460, w: 420, h: 120, type: 'ground' },
     { x: 4660, y: 360, w: 120, h: 24, type: 'stone' },
     { x: 5000, y: 460, w: 420, h: 120, type: 'ground' },
+    // A fixed basalt bridge keeps the late lava seam readable and
+    // recoverable without requiring a pixel-perfect takeoff.
+    { x: 5430, y: 460, w: 130, h: 24, type: 'stone' },
     // ---- Section E: twin falling-rock gauntlet ----
     { x: 5560, y: 460, w: 360, h: 120, type: 'ground' },
     { x: 5660, y: 350, w: 110, h: 24, type: 'stone' },
     { x: 6060, y: 460, w: 400, h: 120, type: 'ground' },
     { x: 6240, y: 360, w: 120, h: 24, type: 'stone' },
+    // A fixed bridge removes the phase-sensitive final lava leap while
+    // preserving the raised stone as an optional crystal route.
+    { x: 6460, y: 390, w: 150, h: 24, type: 'stone' },
     // ---- Section F: home stretch to the ember nest ----
     { x: 6600, y: 460, w: 950, h: 120, type: 'ground' },
     { x: 6760, y: 372, w: 130, h: 24, type: 'stone' },
@@ -314,21 +357,28 @@ const LEVEL_2: LevelDef = {
     { type: 'beetle', x: 1500, y: 432, minX: 1290, maxX: 1650 },
     { type: 'trike', x: 2000, y: 424, minX: 1860, maxX: 2360 },
     { type: 'trike', x: 3080, y: 424, minX: 3020, maxX: 3290 },
-    { type: 'ptero', x: 3500, y: 320, range: 90 },
-    { type: 'ptero', x: 3950, y: 280, range: 120 },
+    { type: 'ptero', x: 3500, y: 190, range: 70 },  // high patrol leaves the x-mover jump lane readable
+    { type: 'ptero', x: 3950, y: 120, range: 100 }, // skyline patrol stays clear of the y-mover exit
     { type: 'beetle', x: 4700, y: 432, minX: 4600, maxX: 4930 },
-    { type: 'ptero', x: 4750, y: 250, range: 110 },
-    { type: 'trike', x: 5200, y: 424, minX: 5040, maxX: 5400 },
-    { type: 'ptero', x: 5700, y: 260, range: 100 },
-    { type: 'beetle', x: 5800, y: 432, minX: 5580, maxX: 5910 },
-    { type: 'ptero', x: 6150, y: 250, range: 130 },
+    { type: 'ptero', x: 4750, y: 120, range: 90 },
+    // The spike exit and lava bridge already provide the timing challenge;
+    // leave this short shelf clear for a readable transition into the rocks.
+    { type: 'ptero', x: 5700, y: 120, range: 90 },
+    // The twin rockfall lane already supplies the timing challenge; removing
+    // the overlapping patrol keeps the recovery shelf from becoming a blind
+    // double-hit immediately after the bridge.
+    { type: 'ptero', x: 6150, y: 120, range: 100 },
     { type: 'trike', x: 6300, y: 424, minX: 6090, maxX: 6440 },
     { type: 'beetle', x: 6800, y: 432, minX: 6650, maxX: 7100 },
-    { type: 'ptero', x: 7050, y: 240, range: 120 },
+    // Keep the final flyer as skyline atmosphere rather than a surprise
+    // collision in the optional high-ledge landing corridor.
+    { type: 'ptero', x: 7050, y: 100, range: 120 },
   ],
   hazards: [
     { type: 'spikes', x: 4330, y: 460, w: 70 },
-    { type: 'spikes', x: 5100, y: 460, w: 80 },
+    // The late shelf leads directly into the falling-rock gauntlet; keep its
+    // landing readable instead of stacking a near-invisible spike hitbox at
+    // the checkpoint exit.
     { type: 'lava', x: 2420, y: 520, w: 560 },
     { type: 'lava', x: 5430, y: 520, w: 130 },
     { type: 'lava', x: 6470, y: 520, w: 130 },
@@ -380,29 +430,35 @@ const LEVEL_3: LevelDef = {
   startGroundY: 460,
   platforms: [
     // ---- Section A: alpine opening (teach the mood) ----
-    { x: 0, y: 460, w: 1300, h: 120, type: 'ground' },
+    { x: 0, y: 460, w: 1500, h: 120, type: 'ground' },
     { x: 380, y: 372, w: 120, h: 24, type: 'stone' },
     { x: 620, y: 300, w: 120, h: 24, type: 'stone' },
     { x: 860, y: 372, w: 120, h: 24, type: 'stone' },
     // ---- Section B: the spring gardens (teach springs) ----
     { x: 1500, y: 460, w: 1000, h: 120, type: 'ground' },
     { x: 1860, y: 300, w: 130, h: 24, type: 'stone' }, // spring 1 ledge
-    { x: 2380, y: 300, w: 130, h: 24, type: 'stone' }, // spring 2 ledge
+    { x: 2380, y: 300, w: 200, h: 24, type: 'stone' }, // spring 2 ledge (wide enough to catch a full-speed spring launch)
     // ---- Section C: gate of the pass (spring → plate → door) ----
-    { x: 2720, y: 460, w: 1180, h: 120, type: 'ground' },
+    { x: 2720, y: 460, w: 1360, h: 120, type: 'ground' },
     { x: 3150, y: 320, w: 150, h: 24, type: 'stone' }, // plate ledge
     // ---- Section D: spitter meadow ----
-    { x: 4120, y: 460, w: 1180, h: 120, type: 'ground' },
+    // Carry the lower shelf through the late transition; the raised stone
+    // remains an optional shortcut, while a missed hop never becomes a
+    // one-life drop before the rockfall ridge.
+    { x: 4080, y: 460, w: 1440, h: 120, type: 'ground' },
     { x: 4500, y: 380, w: 100, h: 24, type: 'stone' }, // spitter perch
     { x: 4900, y: 380, w: 100, h: 24, type: 'stone' }, // spitter perch
     { x: 4000, y: 390, w: 90, h: 24, type: 'mover', axis: 'x', amp: 60, speed: 1.0 }, // over gap
     // ---- Section E: rockfall ridge + bonus spring ledge ----
     { x: 5520, y: 460, w: 1080, h: 120, type: 'ground' },
-    { x: 5400, y: 380, w: 90, h: 24, type: 'stone' }, // over gap
+    // Widen the late gap catch so a mistimed hop still lands safely before
+    // the rockfall ridge.
+    { x: 5360, y: 380, w: 230, h: 24, type: 'stone' },
     { x: 5900, y: 300, w: 130, h: 24, type: 'stone' }, // bonus spring ledge
     // ---- Section F: second gate, final spitter, goal ----
     { x: 6800, y: 460, w: 1200, h: 120, type: 'ground' },
-    { x: 7200, y: 320, w: 150, h: 24, type: 'stone' }, // plate ledge
+    // Extend left to catch the spring's descending arc reliably.
+    { x: 7160, y: 350, w: 190, h: 24, type: 'stone' }, // plate ledge
     { x: 7450, y: 380, w: 100, h: 24, type: 'stone' }, // spitter perch
   ],
   springs: [
@@ -410,11 +466,14 @@ const LEVEL_3: LevelDef = {
     { x: 2300, y: 460 },
     { x: 3000, y: 460 },
     { x: 5800, y: 460 },
-    { x: 7050, y: 460 },
+    // Launch onto the pressure-plate ledge, not the lower spitter perch.
+    { x: 6900, y: 460 },
   ],
   plates: [
     { x: 3200, y: 320, door: 0 },
-    { x: 7250, y: 320, door: 1 },
+    // Place the plate under the spring's reliable landing window so Rex can
+    // hold it immediately instead of sliding off the ledge before it latches.
+    { x: 7210, y: 350, door: 1 },
   ],
   doors: [
     { x: 3650, y: 310, w: 40, h: 150 },
@@ -461,10 +520,15 @@ const LEVEL_3: LevelDef = {
     { type: 'spitter', x: 4540, y: 342 },
     { type: 'spitter', x: 4940, y: 342 },
     { type: 'beetle', x: 5200, y: 432, minX: 5100, maxX: 5280 },
-    { type: 'beetle', x: 5600, y: 432, minX: 5560, maxX: 5680 },
-    { type: 'trike', x: 6250, y: 424, minX: 6100, maxX: 6520 },
-    { type: 'spitter', x: 7490, y: 342 },
-    { type: 'beetle', x: 7700, y: 432, minX: 7650, maxX: 7900 },
+    // Keep the ridge guard clear of the rockfall's first safe landing.
+    { type: 'beetle', x: 5450, y: 432, minX: 5380, maxX: 5510 },
+    { type: 'trike', x: 6250, y: 424, minX: 6200, maxX: 6520 },
+    // Keep the final perch's glob threat local to the gate approach so the
+    // lower route is not hit by projectiles fired before the spring jump.
+    { type: 'spitter', x: 7490, y: 342, range: 90 },
+    // Keep the final collectible's guard beyond the nest so the goal approach
+    // remains a clean victory beat after the gate and spitter sequence.
+    { type: 'beetle', x: 7920, y: 432, minX: 7880, maxX: 7990 },
   ],
   hazards: [
     { type: 'spikes', x: 3450, y: 460, w: 80 },
@@ -523,12 +587,16 @@ const LEVEL_4: LevelDef = {
     { x: 2244, y: 150, w: 40, h: 190, type: 'stone' }, // left wall (gap under = entry)
     { x: 2244, y: 460, w: 1100, h: 120, type: 'ground' }, // arena floor (runs under left wall)
     { x: 3344, y: 150, w: 40, h: 190, type: 'stone' }, // right wall (gap under = exit)
-    // Orb perches
-    { x: 2380, y: 320, w: 110, h: 24, type: 'stone' },
+    // Orb perches. The left perch sits just right of the Magma King's left-wall
+    // position so the pocket stomp arc (left edge 2282→~2467) clears its face and
+    // the post-stomp bounce (landing left edge ~2586) comes down onto its top.
+    { x: 2560, y: 320, w: 110, h: 24, type: 'stone' },
     { x: 3150, y: 320, w: 110, h: 24, type: 'stone' },
     { x: 2720, y: 250, w: 120, h: 24, type: 'stone' },
     // ---- Exit: nest gate + goal ----
-    { x: 3384, y: 460, w: 566, h: 120, type: 'ground' },
+    // Carry the exit floor under the arena wall so the post-boss victory run
+    // cannot catch the forty-pixel seam as Rex leaves the room.
+    { x: 3344, y: 460, w: 606, h: 120, type: 'ground' },
   ],
   crystals: [
     { x: 560, y: 420 }, { x: 700, y: 420 }, { x: 840, y: 420 },
@@ -562,9 +630,12 @@ const LEVEL_4: LevelDef = {
     { x: 3286, y: 428 }, // arena nook beside the right wall
     { x: 3686, y: 428 }, // behind the gate, near the nest
   ],
-  boss: { x: 2760, y: 356, minX: 2320, maxX: 3160 },
+  // minX (2400) keeps the Magma King's body 100px clear of the entry pocket
+  // (2248..2300), so a full jump off the pocket crosses his stomp band over
+  // his left half instead of clipping his left edge on the way up.
+  boss: { x: 2760, y: 356, minX: 2400, maxX: 3160 },
   orbs: [
-    { x: 2435, y: 286 },
+    { x: 2615, y: 286 }, // above the left perch (2560..2670)
     { x: 3205, y: 286 },
     { x: 2780, y: 216 },
   ],
@@ -620,13 +691,13 @@ const LEVEL_5: LevelDef = {
     { x: 5230, y: 430, w: 80, h: 20, type: 'crumble' }, // the crumble bridge
     { x: 5350, y: 430, w: 80, h: 20, type: 'crumble' },
     { x: 5470, y: 430, w: 90, h: 20, type: 'crumble' },
-    { x: 5300, y: 330, w: 110, h: 24, type: 'stone' }, // fossil perch over the gap
+    { x: 6020, y: 330, w: 110, h: 24, type: 'stone' }, // fossil perch before the vale hops
     // ---- Section E: the drowned vale — dry hops to the spring & nest rock ----
     { x: 7140, y: 460, w: 460, h: 120, type: 'ground' },
     { x: 6200, y: 420, w: 110, h: 24, type: 'wood' }, // dry hop
     { x: 6500, y: 420, w: 110, h: 24, type: 'wood' }, // dry hop
     { x: 6800, y: 420, w: 110, h: 24, type: 'wood' }, // dry hop
-    { x: 7200, y: 340, w: 160, h: 24, type: 'stone' }, // the nest rock (goal)
+    { x: 7160, y: 340, w: 220, h: 24, type: 'stone' }, // the nest rock (goal)
   ],
   springs: [
     { x: 3255, y: 460 }, // up into the canopy
@@ -667,10 +738,12 @@ const LEVEL_5: LevelDef = {
     { type: 'lava', x: 2020, y: 520, w: 120 }, // the bog pit (the tide will drown it)
     { type: 'spikes', x: 5750, y: 460, w: 70 }, // sunken teeth on the low ground
   ],
+  // Checkpoints sit on the dry-hop ledges (tops <= 446) so a late respawn —
+  // when the tide has submerged the low ground — is never a death trap.
   checkpoints: [
-    { x: 1520, y: 460 }, // the bog
-    { x: 4230, y: 460 }, // under the canopy crown
-    { x: 6050, y: 460 }, // the drowned vale
+    { x: 1900, y: 420 }, // the bog (dry hop before the pit)
+    { x: 4290, y: 398 }, // the canopy edge
+    { x: 6200, y: 420 }, // the drowned vale (dry hop)
   ],
   enemies: [
     { type: 'beetle', x: 2500, y: 432, minX: 2350, maxX: 2900 },
@@ -678,8 +751,11 @@ const LEVEL_5: LevelDef = {
     { type: 'spitter', x: 4080, y: 306 },
     { type: 'ptero', x: 4350, y: 250, range: 120 },
     { type: 'trike', x: 5700, y: 424, minX: 5600, maxX: 6000 },
-    { type: 'beetle', x: 6300, y: 432, minX: 6150, maxX: 6600 },
-    { type: 'ptero', x: 6600, y: 240, range: 130 },
+    // Give the late checkpoint a clean exit before the vale beetle patrol.
+    { type: 'beetle', x: 6400, y: 432, minX: 6350, maxX: 6600 },
+    // Keep the final flight above the dry-hop arc so the spring approach
+    // stays readable instead of turning into a blind midair collision.
+    { type: 'ptero', x: 6600, y: 160, range: 130 },
   ],
   hearts: [
     { x: 2700, y: 428 }, // the bog
@@ -691,7 +767,7 @@ const LEVEL_5: LevelDef = {
   fossils: [
     { x: 1842, y: 294 }, // high ledge in the bog
     { x: 3855, y: 256 }, // crown of the canopy
-    { x: 5345, y: 306 }, // perch over the sunken gate
+    { x: 6075, y: 306 }, // perch before the vale hops
   ],
   notes: [
     { x: 2210, y: 436 }, // the bog

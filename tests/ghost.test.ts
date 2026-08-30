@@ -77,6 +77,21 @@ describe('GhostPlayer', () => {
     expect(g.view.state).toBe('idle');
     expect(g.moving).toBe(false);
   });
+
+  it('clamps before the first sample without NaN', () => {
+    const g = new GhostPlayer(mkTrack([[0, 0, 414], [1, 100, 414]]));
+    g.update(-5);
+    expect(Number.isFinite(g.x)).toBe(true);
+    expect(g.x).toBeCloseTo(0);
+    expect(g.y).toBeCloseTo(414);
+  });
+
+  it('survives zero-span samples (duplicate timestamps)', () => {
+    const g = new GhostPlayer(mkTrack([[0, 0, 414], [0, 50, 400], [1, 100, 390]]));
+    g.update(0.5);
+    expect(Number.isFinite(g.x)).toBe(true);
+    expect(Number.isFinite(g.y)).toBe(true);
+  });
 });
 
 describe('ghost persistence', () => {
@@ -102,6 +117,33 @@ describe('ghost persistence', () => {
     Store.set('tinyrex_ghost_1', { date: -1, score: 1, time: 1, pts: [{ t: 0, x: 0, y: 0 }] });
     expect(getGhostTrack(1, 0)).toBeNull();
     Store.set('tinyrex_ghost_1', 'garbage');
+    expect(getGhostTrack(1, 0)).toBeNull();
+  });
+
+  it('rejects tracks with NaN samples or a backwards clock', () => {
+    const base = mkTrack([[0, 0, 0], [1, 10, 0], [2, 20, 0], [3, 30, 0]]);
+    const nan = { ...base, pts: [{ t: 0, x: NaN, y: 0 }, ...base.pts.slice(1)] };
+    Store.set('tinyrex_ghost_1', nan);
+    expect(getGhostTrack(1, 0)).toBeNull();
+    const back = {
+      ...base,
+      pts: base.pts.map((p, i) => (i === 2 ? { ...p, t: 0.5 } : p)), // t: 0,1,0.5,3
+    };
+    Store.set('tinyrex_ghost_1', back);
+    expect(getGhostTrack(1, 0)).toBeNull();
+  });
+
+  it('rejects tracks longer than the hard cap or with a bad score/time', () => {
+    const huge = mkTrack(
+      Array.from({ length: 6001 }, (_, i) => [i * 0.1, i, 0] as [number, number, number]),
+    );
+    Store.set('tinyrex_ghost_1', huge);
+    expect(getGhostTrack(1, 0)).toBeNull();
+    const badScore = mkTrack([[0, 0, 0], [1, 10, 0], [2, 20, 0], [3, 30, 0]], NaN, 10);
+    Store.set('tinyrex_ghost_1', badScore);
+    expect(getGhostTrack(1, 0)).toBeNull();
+    const badTime = mkTrack([[0, 0, 0], [1, 10, 0], [2, 20, 0], [3, 30, 0]], 50, -1);
+    Store.set('tinyrex_ghost_1', badTime);
     expect(getGhostTrack(1, 0)).toBeNull();
   });
 

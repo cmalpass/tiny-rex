@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CFG } from '../src/config';
 import { Game } from '../src/game';
 import { LEVEL_DATA, LEVELS } from '../src/level-data';
-import { Store, getGhostEnabled, getFoundFossils, getSkinId, type GameStats } from '../src/store';
+import { Store, getStats, getGhostEnabled, getFoundFossils, getSkinId, type GameStats } from '../src/store';
 import type { RexView } from '../src/sprite';
 
 function makeGame(): Game {
@@ -237,6 +237,29 @@ describe('Run end: stars & per-level records', () => {
     game.onPlayerDeath();
     expect(game.stats.deaths).toBe(1);
     expect(Store.get<GameStats | null>('tinyrex_stats', null)!.deaths).toBe(1);
+  });
+
+  it('flags allClear on victory once every level has a completed record', () => {
+    for (let i = 0; i < LEVELS.length; i++) {
+      Store.set('tinyrex_best_' + i, { score: 100 + i, time: 50 + i });
+    }
+    game.handleKey('primary'); // level 0, non-daily
+    game.elapsed = 100; // a real (positive) run duration
+    game.onPlayerVictory();
+    expect(game.stats.allClear).toBe(true);
+    expect(getStats().allClear).toBe(true);
+  });
+
+  it('does not flag allClear until the final level is completed', () => {
+    for (let i = 0; i < LEVELS.length - 1; i++) {
+      Store.set('tinyrex_best_' + i, { score: 100 + i, time: 50 + i });
+    }
+    // Duskfen (the last level) intentionally has no record yet.
+    game.handleKey('primary'); // level 0, non-daily
+    game.elapsed = 100;
+    game.onPlayerVictory();
+    expect(game.stats.allClear).toBe(false);
+    expect(getStats().allClear).toBe(false);
   });
 
   it('unlocks a new max heart every three hearts collected, capped at five', () => {

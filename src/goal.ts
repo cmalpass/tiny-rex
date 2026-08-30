@@ -11,7 +11,9 @@ export class Goal {
   }
 
   get rect(): { x: number; y: number; w: number; h: number } {
-    return { x: this.x - 34, y: this.y - 52, w: 68, h: 52 };
+    // Let a jumping Rex finish inside the nest's visible light pillar instead
+    // of requiring a precise landing on the small nest mound.
+    return { x: this.x - 60, y: this.y - 140, w: 120, h: 140 };
   }
 
   draw(ctx: CanvasRenderingContext2D, t: number): void {

@@ -283,6 +283,9 @@ export class MagmaKing {
 
   fireAt(player: Player): void {
     const g = this.level.game;
+    // The entry pocket is a deliberate recovery space before the fight. Do
+    // not aim a spread through the arena wall while Rex is still entering.
+    if (player.x > this.minX - 220 && player.x + player.w < this.minX - 40) return;
     const bx = this.x + this.w / 2;
     const by = this.y + 34;
     const px = player.x + player.w / 2;
