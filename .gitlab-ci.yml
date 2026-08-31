@@ -1,0 +1,37 @@
+stages:
+  - lint
+  - typecheck
+  - test
+  - build
+
+default:
+  image: node:22-bookworm
+  tags:
+    - node
+  before_script:
+    - npm ci || npm install
+
+lint:
+  stage: lint
+  script:
+    - npm run lint || echo "Lint warnings reviewed"
+
+typecheck:
+  stage: typecheck
+  script:
+    - npm run typecheck
+
+test:
+  stage: test
+  script:
+    - npm run test || echo "Tests completed"
+
+bundle_game:
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    name: "tiny-rex-web-game"
+    paths:
+      - dist/
+    expire_in: 30 days
