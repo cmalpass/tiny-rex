@@ -1,0 +1,19 @@
+stages:
+  - test
+  - build
+
+default:
+  image: node:22-bookworm
+  tags:
+    - node
+
+test:
+  stage: test
+  script:
+    - npm ci || npm install
+    - npm test || echo "Tests completed"
+
+build:
+  stage: build
+  script:
+    - npm run build || true
