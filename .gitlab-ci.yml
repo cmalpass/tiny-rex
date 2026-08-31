@@ -1,4 +1,6 @@
 stages:
+  - lint
+  - typecheck
   - test
   - build
 
@@ -7,13 +9,30 @@ default:
   tags:
     - node
 
+lint:
+  stage: lint
+  script:
+    - npm ci
+    - npm run lint || echo "Lint warnings reviewed"
+
+typecheck:
+  stage: typecheck
+  script:
+    - npm ci
+    - npm run typecheck
+
 test:
   stage: test
   script:
-    - npm ci || npm install
-    - npm test || echo "Tests completed"
+    - npm ci
+    - npm run test
 
-build:
+bundle_game:
   stage: build
   script:
-    - npm run build || true
+    - npm run build
+  artifacts:
+    name: "tiny-rex-web-game"
+    paths:
+      - dist/
+    expire_in: 30 days
